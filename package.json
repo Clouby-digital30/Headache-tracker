@@ -1,0 +1,11 @@
+{
+  "name": "clary",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Headache and migraine diary for perimenopause and menopause",
+  "scripts": {
+    "start": "python3 -m http.server 8080",
+    "test": "node --test tests/*.test.js"
+  }
+}
