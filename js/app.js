@@ -3,9 +3,11 @@ import {
   MENO_SYMPTOMS, STAGES, DERIVED_LABELS, MILESTONES, SPECIES, CARDS,
 } from './data.js';
 import { load, save, today, addDays, parseDate, toDateStr, emptyEntry, streaks, defaultState, normalize } from './store.js';
-import { findPatterns, describePattern, summarize, monthly, byWeekday, medDaysLast30 } from './insights.js';
+import {
+  findPatterns, describePattern, summarize, monthly, byWeekday, medDaysLast30, medOveruse, cycleInsight, mostLogged,
+} from './insights.js';
 import { gardenScene, flower, speciesFor } from './garden.js';
-import { barChart, compareBars } from './charts.js';
+import { barChart, compareBars, rankList } from './charts.js';
 import { download, toCsv } from './export.js';
 import * as reminders from './reminders.js';
 
@@ -18,6 +20,16 @@ const ui = {
   reward: null,
   showLibrary: false,
 };
+
+// Applies the chosen theme before first paint, and again whenever it changes.
+function applyTheme() {
+  const t = state.settings.theme;
+  document.documentElement.dataset.theme = t === 'auto' ? '' : t;
+  const dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#1E1B19' : '#FAF5EE');
+}
+applyTheme();
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => { if (state.settings.theme === 'auto') applyTheme(); });
 
 const $view = document.getElementById('view');
 const $nav = document.getElementById('nav');
@@ -112,12 +124,32 @@ function entrySummary(e) {
   return bits.map(esc).join(' · ');
 }
 
+// A short sentence plus a track spanning the earliest-to-latest estimate, with
+// today marked on it. The track's two ends are the whole range, so the band
+// covers it in full; only the "today" marker needs a position.
+function cycleCard(c, t) {
+  if (!c) return '';
+  const span = Math.max(1, (parseDate(c.latest) - parseDate(c.earliest)) / 86400000);
+  const nowPos = Math.min(100, Math.max(0, Math.round(((parseDate(t) - parseDate(c.earliest)) / 86400000 / span) * 100)));
+  const when = c.daysUntil > 1 ? `in about ${c.daysUntil} days`
+    : c.daysUntil === 1 ? 'tomorrow' : c.daysUntil === 0 ? 'around today'
+      : `${Math.abs(c.daysUntil)} ${Math.abs(c.daysUntil) === 1 ? 'day' : 'days'} ago`;
+  return `<div class="card">
+    <p class="eyebrow">Your cycle</p>
+    <p>Based on your last ${c.cycleCount + 1} periods, your next one may start ${when}.</p>
+    <div class="cycle-track"><span class="band" style="left:0;width:100%"></span><span class="now" style="left:${nowPos}%"></span></div>
+    <div class="cycle-ends"><span>${niceDate(c.earliest, { day: 'numeric', month: 'short' })}</span><span>${niceDate(c.latest, { day: 'numeric', month: 'short' })}</span></div>
+    ${!c.regular ? '<p class="hint">Your cycles have varied quite a bit lately, so take this as a rough guide rather than a date.</p>' : ''}
+  </div>`;
+}
+
 function viewToday() {
   const t = today(), y = addDays(t, -1);
   const done = state.entries[t];
   const st = streaks(state.entries);
   const pat = findPatterns(state.entries);
   const medDays = medDaysLast30(state.entries, t);
+  const cycle = state.profile.stage !== 'none' ? cycleInsight(state.entries, t) : null;
 
   const hero = done
     ? `<div class="card hero done">
@@ -160,6 +192,7 @@ function viewToday() {
       ${gardenScene(st.total)}
       <div class="peek-stats"><span><strong>${st.total}</strong> ${st.total === 1 ? 'bloom' : 'blooms'}</span><span><strong>${st.current}</strong> day streak</span></div>
     </button>
+    ${cycleCard(cycle, t)}
     ${insight}${medNote}`;
 }
 
@@ -200,10 +233,17 @@ function viewCheckin() {
         <textarea rows="3" data-field="notes" maxlength="1000" placeholder="Anything else worth remembering">${esc(d.notes)}</textarea></label>
     </div>` : '';
 
+  const quickActions = ui.draftIsNew && state.entries[addDays(date, -1)]
+    ? `<button class="link-row" data-action="copy-yesterday"><span>Copy yesterday’s check-in</span><span aria-hidden="true">›</span></button>`
+    : !ui.draftIsNew
+      ? `<button class="link-row danger" data-action="delete-checkin" data-date="${date}"><span>Clear this day’s check-in</span><span aria-hidden="true">×</span></button>`
+      : '';
+
   return `<header class="top with-back">
       <button class="icon-btn" data-action="close-checkin" aria-label="Back">‹</button>
       <div><p class="eyebrow">${isToday ? 'Today' : 'Looking back'}</p><h1>${niceDate(date)}</h1></div>
     </header>
+    ${quickActions}
     <div class="card">
       <h3>${isToday ? 'Any headache today?' : 'Any headache that day?'}</h3>
       ${chips('headache.had', [['no', 'No headache'], ['yes', 'Yes']], h.had ? 'yes' : 'no', false)}
@@ -237,6 +277,7 @@ function viewCalendar() {
   const days = new Date(y, m, 0).getDate();
   const offset = (first.getDay() + 6) % 7;
   const t = today();
+  const cycle = state.profile.stage !== 'none' ? cycleInsight(state.entries, t) : null;
   let cells = '';
   for (let i = 0; i < offset; i++) cells += '<span class="cal-cell empty"></span>';
   for (let d = 1; d <= days; d++) {
@@ -244,9 +285,10 @@ function viewCalendar() {
     const e = state.entries[str];
     const future = str > t;
     const period = e && e.period !== 'none';
+    const predicted = !e && cycle && str >= cycle.earliest && str <= cycle.latest;
     const desc = e ? (e.headache.had ? `headache ${e.headache.intensity} of 10` : 'no headache') : 'no check-in';
-    cells += `<button class="cal-cell ${intensityClass(e)}${str === t ? ' today' : ''}" ${future ? 'disabled' : ''}
-      data-action="open-checkin" data-date="${str}" aria-label="${niceDate(str)}: ${desc}${period ? ', period' : ''}">
+    cells += `<button class="cal-cell ${intensityClass(e)}${str === t ? ' today' : ''}${predicted ? ' predicted' : ''}" ${future ? 'disabled' : ''}
+      data-action="open-checkin" data-date="${str}" aria-label="${niceDate(str)}: ${desc}${period ? ', period' : ''}${predicted ? ', period may start around here' : ''}">
       <span class="num">${d}</span>${period ? '<span class="drop" aria-hidden="true"></span>' : ''}</button>`;
   }
   const s = summarize(state.entries, `${ui.month}-01`, `${ui.month}-31`);
@@ -262,7 +304,7 @@ function viewCalendar() {
       <div class="legend">
         <span><i class="sw clear"></i>No headache</span><span><i class="sw h1"></i>Mild</span>
         <span><i class="sw h2"></i>Moderate</span><span><i class="sw h3"></i>Severe</span>
-        <span><i class="drop"></i>Period</span>
+        <span><i class="drop"></i>Period</span>${cycle ? '<span><i class="sw predicted-sw"></i>Period may start</span>' : ''}
       </div>
     </div>
     <div class="tiles">
@@ -295,6 +337,9 @@ function viewInsights() {
   const months = monthly(state.entries, ui.range === 30 ? 3 : ui.range === 90 ? 6 : 12, to);
   const week = byWeekday(state.entries, from, to);
   const ranges = [[30, '30 days'], [90, '3 months'], [365, '1 year'], [0, 'All time']];
+  const cycle = state.profile.stage !== 'none' ? cycleInsight(state.entries, to) : null;
+  const logged = mostLogged(state.entries, from, to);
+  const mo = medOveruse(state.entries, to);
 
   const patterns = !pat.ready
     ? `<p>Clary needs about two weeks of check-ins before it can compare days fairly. ${pat.needed} more to go.</p>`
@@ -306,6 +351,18 @@ function viewInsights() {
     ? `<div class="card"><h2>What seems to go with fewer headaches</h2>${pat.helpers.slice(0, 4).map(patternCard).join('')}</div>`
     : '';
 
+  const mostLoggedCard = logged.items.length
+    ? `<div class="card"><h2>Most logged</h2>
+        <p class="hint">What you have tagged most often in this period, regardless of whether a headache followed.</p>
+        ${rankList(logged.items.map((i) => ({ label: esc(labelOf(i.id)), value: i.count })))}
+      </div>`
+    : '';
+
+  const medNote = mo.flag
+    ? `<div class="card note"><p class="eyebrow">Worth mentioning to your doctor</p>
+        <p>Over the last three months you have needed pain relief on about ${mo.perMonth.toFixed(1)} days a month on average. Frequent use can itself lead to more headaches.</p></div>`
+    : '';
+
   return `<header class="top"><h1>Insights</h1></header>
     <div class="chips range" role="group" aria-label="Period">${ranges.map(([n, l]) =>
     `<button class="chip${ui.range === n ? ' on' : ''}" aria-pressed="${ui.range === n}" data-action="range" data-value="${n}">${l}</button>`).join('')}</div>
@@ -313,6 +370,8 @@ function viewInsights() {
       ${tile(s.headacheDays, 'headache days')}${tile(s.migraineDays, 'migraine days')}
       ${tile(s.headacheDays ? s.avgIntensity.toFixed(1) : '–', 'average intensity')}${tile(s.medDays, 'days with pain relief')}
     </div>
+    ${medNote}
+    ${cycleCard(cycle, to)}
     <div class="card"><h2>Headache days per month</h2>
       ${barChart(months.map((x) => ({ label: x.label, value: x.headacheDays, tip: `${x.label} ${x.year}: ${x.headacheDays} headache days out of ${x.logged} check-ins` })), { ariaLabel: 'Headache days per month' })}
     </div>
@@ -324,6 +383,7 @@ function viewInsights() {
       ${patterns}
     </div>
     ${helpers}
+    ${mostLoggedCard}
     <div class="card"><h2>Take it with you</h2>
       <p class="hint">A report for your doctor, or the raw data for a spreadsheet.</p>
       <div class="btn-row">
@@ -408,6 +468,10 @@ function viewSettings() {
         ${toSetting(chips('settings.trackedTriggers', g.items, s.trackedTriggers, true))}</div>`).join('') : '';
 
   return `<header class="top"><h1>Settings</h1></header>
+    <div class="card"><h2>Appearance</h2>
+      <div class="field"><span>Theme</span>${toSetting(chips('settings.theme',
+    [['auto', 'Match device'], ['light', 'Light'], ['dark', 'Dark']], s.theme, false))}</div>
+    </div>
     <div class="card"><h2>About you</h2>
       <label class="field"><span>Name</span><input type="text" data-setting="profile.name" value="${esc(p.name)}" maxlength="30"></label>
       <div class="field"><span>Cycle</span>${toSetting(chips('profile.stage', STAGES, p.stage, false))}</div>
@@ -539,7 +603,7 @@ function applyPick(target, el) {
   } else {
     // tapping a selected single choice clears it (except yes/no questions)
     const current = getPath(target, field);
-    const clearable = !BOOL_FIELDS.has(field) && field !== 'profile.stage' && field !== 'period';
+    const clearable = !BOOL_FIELDS.has(field) && field !== 'profile.stage' && field !== 'period' && field !== 'settings.theme';
     setPath(target, field, clearable && current === value ? (el.dataset.num ? 0 : '') : value);
   }
   return field;
@@ -562,6 +626,19 @@ const actions = {
     if (wasNew) showReward(date);
   },
   'close-modal': () => { $modal.hidden = true; $modal.innerHTML = ''; },
+  'copy-yesterday': () => {
+    const prev = state.entries[addDays(ui.draftDate, -1)];
+    if (!prev) return;
+    const base = emptyEntry();
+    ui.draft = { ...base, ...structuredClone(prev), headache: { ...base.headache, ...structuredClone(prev.headache || {}) }, notes: '' };
+    render(true);
+  },
+  'delete-checkin': (el) => {
+    if (!confirm('Remove this day’s check-in? This cannot be undone.')) return;
+    delete state.entries[el.dataset.date];
+    commit();
+    go(el.dataset.date === today() ? 'today' : 'calendar');
+  },
   month: (el) => {
     const [y, m] = ui.month.split('-').map(Number);
     ui.month = toDateStr(new Date(y, m - 1 + Number(el.dataset.step), 1, 12)).slice(0, 7);
@@ -571,6 +648,7 @@ const actions = {
   setting: async (el) => {
     const field = applyPick(state, el);
     if (field === 'settings.reminderOn' && state.settings.reminderOn) await reminders.askPermission();
+    if (field === 'settings.theme') applyTheme();
     commit();
     render(true);
   },
@@ -670,8 +748,37 @@ document.addEventListener('keydown', (ev) => {
   if (ev.key === 'Escape' && !$modal.hidden) actions['close-modal']();
 });
 
+// Service worker updates: ask before switching, so an open check-in is never
+// interrupted mid-edit by a reload the user did not choose.
+let waitingWorker = null;
+function showUpdateBanner(worker) {
+  waitingWorker = worker;
+  if (document.getElementById('update-banner')) return;
+  const bar = document.createElement('div');
+  bar.id = 'update-banner';
+  bar.className = 'update-banner';
+  bar.innerHTML = '<span>A new version of Clary is ready.</span><button class="btn ghost" data-action="apply-update">Refresh</button>';
+  document.body.prepend(bar);
+}
+actions['apply-update'] = () => waitingWorker?.postMessage('skipWaiting');
+
 if ('serviceWorker' in navigator) {
-  navigator.serviceWorker.register('sw.js').then(() => reminders.sync(state)).catch(() => {});
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    reminders.sync(state);
+    if (reg.waiting && navigator.serviceWorker.controller) showUpdateBanner(reg.waiting);
+    reg.addEventListener('updatefound', () => {
+      const fresh = reg.installing;
+      fresh?.addEventListener('statechange', () => {
+        if (fresh.state === 'installed' && navigator.serviceWorker.controller) showUpdateBanner(reg.waiting || fresh);
+      });
+    });
+  }).catch(() => {});
+  let reloaded = false;
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (reloaded) return;
+    reloaded = true;
+    location.reload();
+  });
 }
 
 if (location.hash === '#checkin' && state.profile.onboarded) openCheckin(today()); else render();

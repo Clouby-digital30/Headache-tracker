@@ -26,6 +26,7 @@ export function defaultState() {
     version: 1,
     profile: { name: '', stage: 'irregular', onboarded: false },
     settings: {
+      theme: 'auto', // 'auto' | 'light' | 'dark'
       reminderOn: false,
       reminderTime: '20:00',
       trackedTriggers: [...DEFAULT_TRIGGERS],

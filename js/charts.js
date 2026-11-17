@@ -1,7 +1,8 @@
-// Small SVG charts. Text uses ink colours; marks carry the data colour.
-const INK_MUTED = '#6B5B52';
-const GRID = '#E9DDCF';
-const BAR = '#B85A3E';
+// Small SVG charts. Inline colours reference CSS custom properties, so a
+// chart stays correct when the page switches between light and dark.
+const INK_MUTED = 'var(--ink-soft)';
+const GRID = 'var(--line)';
+const BAR = 'var(--terracotta)';
 
 const escAttr = (s) => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 
@@ -46,4 +47,15 @@ export function compareBars(withRate, withoutRate) {
       <span class="cmp-value">${Math.round(rate * 100)}%</span>
     </div>`;
   return `<div class="cmp">${row('with', 'With', withRate)}${row('without', 'Without', withoutRate)}</div>`;
+}
+
+/** A simple ranked list with bars proportional to the largest value. Labels and counts are passed pre-escaped. */
+export function rankList(items) {
+  const max = Math.max(1, ...items.map((i) => i.value));
+  return `<div class="rank">${items.map((i) => `
+    <div class="rank-row">
+      <span class="rank-label">${i.label}</span>
+      <span class="rank-track"><span class="rank-fill" style="width:${Math.max(4, Math.round((i.value / max) * 100))}%"></span></span>
+      <span class="rank-value">${i.value}</span>
+    </div>`).join('')}</div>`;
 }

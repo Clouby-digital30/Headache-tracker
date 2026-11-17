@@ -1,5 +1,5 @@
 // Service worker: offline app shell, reminder notifications.
-const CACHE = 'clary-shell-v1';
+const CACHE = 'clary-shell-v2';
 const META_CACHE = 'clary-meta';
 const SHELL = [
   './', 'index.html', 'css/styles.css', 'manifest.webmanifest',
@@ -9,7 +9,13 @@ const SHELL = [
 ];
 
 self.addEventListener('install', (e) => {
-  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  // Cache the new shell, but wait for the page to ask before taking over:
+  // skipWaiting now would swap files mid-session without warning.
+  e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
+});
+
+self.addEventListener('message', (e) => {
+  if (e.data === 'skipWaiting') self.skipWaiting();
 });
 
 self.addEventListener('activate', (e) => {

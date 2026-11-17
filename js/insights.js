@@ -145,3 +145,73 @@ export function byWeekday(entries, from, to) {
 export function medDaysLast30(entries, endStr) {
   return summarize(entries, addDays(endStr, -29), endStr).medDays;
 }
+
+// Pain-relief frequency over the last 90 days, as a monthly average. A rolling
+// window reads as "worth a conversation" earlier than waiting for a single bad month.
+export function medOveruse(entries, endStr) {
+  const { medDays } = summarize(entries, addDays(endStr, -89), endStr);
+  const perMonth = medDays / 3;
+  return { medDays, perMonth, flag: perMonth >= 10 };
+}
+
+const MIN_CYCLES = 2;
+const PLAUSIBLE_CYCLE = [14, 60]; // days; outside this, a gap is probably a logging gap, not a real cycle
+
+// Estimates the next period from the length of recent cycles. Perimenopause
+// cycles vary, so this is framed as a range, not a date, and widens when the
+// user's own history has been irregular.
+export function cycleInsight(entries, todayStr) {
+  const starts = periodStarts(entries);
+  if (starts.length < MIN_CYCLES) return null;
+
+  const recent = starts.slice(-7); // up to the last 6 gaps
+  const lengths = [];
+  for (let i = 1; i < recent.length; i++) {
+    lengths.push(Math.round((parseDate(recent[i]) - parseDate(recent[i - 1])) / 86400000));
+  }
+  const plausible = lengths.filter((n) => n >= PLAUSIBLE_CYCLE[0] && n <= PLAUSIBLE_CYCLE[1]);
+  const used = plausible.length ? plausible : lengths;
+  if (!used.length) return null;
+
+  const avg = used.reduce((a, b) => a + b, 0) / used.length;
+  const variance = used.reduce((a, b) => a + (b - avg) ** 2, 0) / used.length;
+  const spreadFloor = used.length < 3 ? 4 : 2; // low confidence with few cycles: widen the range
+  const spread = Math.max(spreadFloor, Math.round(Math.sqrt(variance)));
+
+  const last = recent[recent.length - 1];
+  const avgLength = Math.round(avg);
+  const nextEstimate = addDays(last, avgLength);
+  const daysUntil = Math.round((parseDate(nextEstimate) - parseDate(todayStr)) / 86400000);
+
+  return {
+    lastStart: last,
+    cycleCount: used.length,
+    avgLength,
+    spread,
+    nextEstimate,
+    earliest: addDays(nextEstimate, -spread),
+    latest: addDays(nextEstimate, spread),
+    daysUntil,
+    regular: spread <= 3,
+  };
+}
+
+// How often each already-chosen trigger or menopause symptom was logged, over
+// a range. Purely descriptive (counts), unlike findPatterns which compares
+// outcomes - useful from day one, before there is enough data for a pattern.
+export function mostLogged(entries, from, to, n = 6) {
+  const counts = new Map();
+  let days = 0;
+  for (const d of Object.keys(entries)) {
+    if (d < from || d > to) continue;
+    days++;
+    const e = entries[d];
+    for (const t of e.triggers || []) counts.set(t, (counts.get(t) || 0) + 1);
+    for (const m of e.meno || []) counts.set(m, (counts.get(m) || 0) + 1);
+  }
+  const items = [...counts.entries()]
+    .map(([id, count]) => ({ id, count }))
+    .sort((a, b) => b.count - a.count || a.id.localeCompare(b.id))
+    .slice(0, n);
+  return { days, items };
+}
