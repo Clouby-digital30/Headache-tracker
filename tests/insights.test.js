@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { addDays, emptyEntry } from '../js/store.js';
-import { findPatterns, describePattern, periodStarts, summarize, monthly } from '../js/insights.js';
+import {
+  findPatterns, describePattern, periodStarts, summarize, monthly, cycleInsight, mostLogged, medOveruse,
+} from '../js/insights.js';
 
 function build(days, fn) {
   const entries = {};
@@ -74,4 +76,56 @@ test('summaries and monthly totals', () => {
   const m = monthly(entries, 2, '2026-01-31');
   assert.equal(m[1].headacheDays, 4);
   assert.equal(m[0].logged, 0);
+});
+
+test('estimates the next period from recent cycle lengths', () => {
+  const entries = build(100, (e, i) => { if (i % 28 < 5) e.period = 'medium'; });
+  const c = cycleInsight(entries, addDays('2026-01-01', 99));
+  assert.ok(c);
+  assert.equal(c.cycleCount, 3); // 4 periods logged, 3 gaps between them
+  assert.equal(c.avgLength, 28);
+  assert.equal(c.lastStart, addDays('2026-01-01', 84));
+  assert.equal(c.nextEstimate, addDays('2026-01-01', 112));
+  assert.equal(c.daysUntil, 13);
+  assert.equal(c.regular, true);
+});
+
+test('cycle estimate needs at least two periods', () => {
+  const entries = build(20, (e, i) => { if (i < 5) e.period = 'medium'; });
+  assert.equal(cycleInsight(entries, addDays('2026-01-01', 19)), null);
+});
+
+test('widens the range after irregular cycles', () => {
+  // Cycle lengths of 21, 35 and 28 days: noticeably uneven.
+  const starts = [0, 21, 56, 84];
+  const entries = build(95, (e, i) => { if (starts.some((s) => i >= s && i < s + 4)) e.period = 'medium'; });
+  const c = cycleInsight(entries, addDays('2026-01-01', 94));
+  assert.equal(c.regular, false);
+  assert.ok(c.spread > 3);
+});
+
+test('counts the triggers and menopause symptoms logged in a range', () => {
+  const entries = build(10, (e, i) => {
+    if (i % 2 === 0) e.triggers.push('red_wine');
+    if (i % 3 === 0) e.meno.push('hot_flash');
+  });
+  const r = mostLogged(entries, '2026-01-01', addDays('2026-01-01', 9));
+  assert.equal(r.days, 10);
+  assert.equal(r.items.find((x) => x.id === 'red_wine').count, 5);
+  assert.equal(r.items.find((x) => x.id === 'hot_flash').count, 4);
+});
+
+test('flags frequent pain relief averaged over three months', () => {
+  const heavy = build(90, (e, i) => {
+    if (i < 30) { e.headache.had = true; e.headache.meds = ['Ibuprofen']; }
+  });
+  const flagged = medOveruse(heavy, addDays('2026-01-01', 89));
+  assert.equal(flagged.perMonth, 10);
+  assert.equal(flagged.flag, true);
+
+  const light = build(90, (e, i) => {
+    if (i < 12) { e.headache.had = true; e.headache.meds = ['Ibuprofen']; }
+  });
+  const ok = medOveruse(light, addDays('2026-01-01', 89));
+  assert.equal(ok.flag, false);
 });

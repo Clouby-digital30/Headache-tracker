@@ -9,16 +9,22 @@ stored on the user's own device.
 - **Daily check-in** in about 30 seconds: headache, period, stress, sleep and triggers, with an
   optional "more detail" section (duration, location, symptoms, medication and relief,
   menopause symptoms, HRT, mood, notes).
-- **Cycle and menopause tracking**: period days and flow, and works without periods too.
+- **Cycle and menopause tracking**: period days and flow, and works without periods too. From
+  two logged periods onward, Clary estimates a window for the next one from past cycle lengths,
+  shown on Today and marked on the calendar.
 - **Trigger library**: about 55 known headache and migraine triggers in six groups, plus your own.
 - **Pattern recognition**: compares days with and without each factor on the same day, the next
   day and two days later, for example "The day after high stress, you had a headache 71% of the
-  time, compared with 29% otherwise."
+  time, compared with 29% otherwise." A "Most logged" list shows what comes up most often, even
+  before there is enough data for a pattern.
 - **Rewards**: a garden that grows one flower per check-in, new flower species, milestones and a
   daily self-care card.
 - **Long-term data**: calendar, charts per month and weekday, a printable doctor report (PDF via
-  the print dialog), CSV export, and JSON backup and restore.
+  the print dialog), CSV export, and JSON backup and restore. A rolling three-month view flags
+  frequent pain relief, which can itself feed more headaches.
 - **Reminders**: a daily notification at a time you choose, plus a repeating calendar alert.
+- **Light and dark appearance**, following the device by default or set directly in Settings.
+- **Faster logging**: copy yesterday's check-in, or clear a day you logged by mistake.
 
 ## Run it
 
