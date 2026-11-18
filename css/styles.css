@@ -163,6 +163,8 @@ p:last-child { margin-bottom: 0; }
 .card.hero h2 { font-size: 1.5rem; }
 .card.hero.done { background: linear-gradient(160deg, var(--hero-done-grad-1), var(--hero-done-grad-2)); border-color: var(--hero-done-border); }
 .card.note { background: var(--note-bg); }
+.card.backup-nudge { background: var(--note-bg); border-color: var(--hero-border); }
+.card.backup-nudge .btn-row { margin-bottom: 0; margin-top: 4px; }
 .summary { font-size: 1.05rem; }
 
 .selfcare .quote, .quote { font-family: var(--serif); font-size: 1.15rem; line-height: 1.45; }

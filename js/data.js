@@ -15,16 +15,20 @@ export const TRIGGER_GROUPS = [
     items: [
       ['sleep_short', 'Too little sleep'],
       ['sleep_long', 'Slept in / too much sleep'],
+      ['slept_longer', 'Slept longer than usual'],
+      ['slept_deep', 'Slept too deeply'],
       ['sleep_broken', 'Broken sleep'],
       ['late_night', 'Late night'],
       ['jet_lag', 'Jet lag / shift change'],
       ['nap', 'Long daytime nap'],
+      ['tired', 'Tired'],
     ],
   },
   {
     id: 'stress', label: 'Stress & emotions',
     items: [
       ['busy_day', 'Very busy day'],
+      ['busy', 'Busy day'],
       ['worry', 'Worry or anxiety'],
       ['upset', 'Emotional upset / crying'],
       ['conflict', 'Argument or conflict'],
@@ -89,8 +93,8 @@ export const TRIGGER_GROUPS = [
 
 // Triggers switched on for a new user: a short, relevant starter set.
 export const DEFAULT_TRIGGERS = [
-  'sleep_short', 'sleep_broken', 'busy_day', 'worry', 'skipped_meal', 'dehydrated',
-  'alcohol', 'caffeine_more', 'weather_change', 'bright_light', 'screen_time',
+  'sleep_short', 'sleep_broken', 'tired', 'slept_longer', 'slept_deep', 'busy_day', 'busy', 'worry',
+  'skipped_meal', 'dehydrated', 'alcohol', 'caffeine_more', 'weather_change', 'bright_light', 'screen_time',
   'strong_smell', 'neck_tension', 'hard_exercise',
 ];
 
