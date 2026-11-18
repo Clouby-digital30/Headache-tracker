@@ -1,5 +1,5 @@
 // Local-only persistence. Everything lives in localStorage on this device.
-import { DEFAULT_TRIGGERS, DEFAULT_MEDS } from './data.js';
+import { DEFAULT_TRIGGERS, DEFAULT_MEDS, TRIGGER_UPDATES } from './data.js';
 
 const KEY = 'clary.v1';
 
@@ -30,6 +30,7 @@ export function defaultState() {
       reminderOn: false,
       reminderTime: '20:00',
       trackedTriggers: [...DEFAULT_TRIGGERS],
+      appliedTriggerUpdates: [], // ids of TRIGGER_UPDATES already merged in, so they aren't repeated
       customTriggers: [], // [{id, label}]
       meds: [...DEFAULT_MEDS],
       usesHrt: false,
@@ -42,14 +43,28 @@ export function defaultState() {
   };
 }
 
+// Adds any trigger introduced since a saved state was last written, once,
+// without undoing a user's own choice to remove it afterwards.
+function applyTriggerUpdates(settings) {
+  const applied = Array.isArray(settings.appliedTriggerUpdates) ? [...settings.appliedTriggerUpdates] : [];
+  const tracked = [...settings.trackedTriggers];
+  for (const update of TRIGGER_UPDATES) {
+    if (applied.includes(update.id)) continue;
+    for (const t of update.add) if (!tracked.includes(t)) tracked.push(t);
+    applied.push(update.id);
+  }
+  return { ...settings, trackedTriggers: tracked, appliedTriggerUpdates: applied };
+}
+
 export function normalize(raw) {
   const base = defaultState();
   if (!raw || typeof raw !== 'object') return base;
+  const settings = applyTriggerUpdates({ ...base.settings, ...(raw.settings || {}) });
   return {
     ...base,
     ...raw,
     profile: { ...base.profile, ...(raw.profile || {}) },
-    settings: { ...base.settings, ...(raw.settings || {}) },
+    settings,
     entries: raw.entries && typeof raw.entries === 'object' ? raw.entries : {},
     seenMilestones: Array.isArray(raw.seenMilestones) ? raw.seenMilestones : [],
   };

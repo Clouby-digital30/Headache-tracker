@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultState, backupDue } from '../js/store.js';
+import { defaultState, backupDue, normalize } from '../js/store.js';
 
 function withEntries(n) {
   const state = defaultState();
@@ -37,4 +37,23 @@ test('a snooze is honoured until it expires', () => {
   assert.equal(backupDue(state), false);
   state.backupSnoozedUntil = Date.now() - 1000;
   assert.equal(backupDue(state), true);
+});
+
+test('a newly introduced trigger reaches an already-set-up user once', () => {
+  const saved = defaultState();
+  saved.profile.onboarded = true;
+  saved.settings.trackedTriggers = ['alcohol']; // a narrower list, as if saved before this trigger existed
+  const loaded = normalize(saved);
+  assert.ok(loaded.settings.trackedTriggers.includes('tired'));
+  assert.ok(loaded.settings.appliedTriggerUpdates.length > 0);
+});
+
+test('removing a migrated trigger again sticks - it does not come back', () => {
+  const saved = defaultState();
+  saved.profile.onboarded = true;
+  saved.settings.trackedTriggers = ['alcohol'];
+  const afterMigration = normalize(saved);
+  afterMigration.settings.trackedTriggers = afterMigration.settings.trackedTriggers.filter((t) => t !== 'tired');
+  const loadedAgain = normalize(afterMigration);
+  assert.ok(!loadedAgain.settings.trackedTriggers.includes('tired'));
 });

@@ -98,6 +98,14 @@ export const DEFAULT_TRIGGERS = [
   'strong_smell', 'neck_tension', 'hard_exercise',
 ];
 
+// New default triggers introduced after the first release. Each is added
+// once to an already-set-up user's check-in list (not just new sign-ups), so
+// nobody has to go find it in the full picker - but never reintroduced if
+// they remove it again afterwards. See store.js normalize().
+export const TRIGGER_UPDATES = [
+  { id: '2026-11-tired-busy-sleep', add: ['tired', 'busy', 'slept_longer', 'slept_deep'] },
+];
+
 export const PERIOD_LEVELS = [
   ['none', 'None'], ['spotting', 'Spotting'], ['light', 'Light'], ['medium', 'Medium'], ['heavy', 'Heavy'],
 ];

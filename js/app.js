@@ -12,6 +12,7 @@ import { download, toCsv } from './export.js';
 import * as reminders from './reminders.js';
 
 let state = load();
+save(state); // persist any one-time migration (e.g. a newly introduced trigger) right away
 const ui = {
   view: 'today',
   draft: null, draftDate: null, draftIsNew: false, showMore: false,
