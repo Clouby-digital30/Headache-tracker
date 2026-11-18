@@ -2,7 +2,7 @@ import {
   TRIGGER_GROUPS, PERIOD_LEVELS, HEADACHE_TYPES, DURATIONS, LOCATIONS, HEADACHE_SYMPTOMS, IMPACT, RELIEF,
   MENO_SYMPTOMS, STAGES, DERIVED_LABELS, MILESTONES, SPECIES, CARDS,
 } from './data.js';
-import { load, save, today, addDays, parseDate, toDateStr, emptyEntry, streaks, defaultState, normalize } from './store.js';
+import { load, save, today, addDays, parseDate, toDateStr, emptyEntry, streaks, defaultState, normalize, backupDue } from './store.js';
 import {
   findPatterns, describePattern, summarize, monthly, byWeekday, medDaysLast30, medOveruse, cycleInsight, mostLogged,
 } from './insights.js';
@@ -52,6 +52,13 @@ function labelOf(id) {
 const factorPhrase = (id) => DERIVED_LABELS[id] || `“${labelOf(id)}”`;
 
 const niceDate = (str, opts = { weekday: 'long', day: 'numeric', month: 'long' }) => parseDate(str).toLocaleDateString('en', opts);
+function lastBackupText(ts) {
+  if (!ts) return 'You have not saved a backup yet.';
+  const days = Math.floor((Date.now() - ts) / 86400000);
+  if (days <= 0) return 'Last backup: today.';
+  if (days === 1) return 'Last backup: yesterday.';
+  return `Last backup: ${days} days ago.`;
+}
 const dayNumber = (str) => Math.round(parseDate(str).getTime() / 86400000);
 const cardFor = (str) => CARDS[dayNumber(str) % CARDS.length];
 
@@ -169,6 +176,18 @@ function viewToday() {
     ? `<button class="link-row" data-action="open-checkin" data-date="${y}"><span>Missed yesterday? Fill it in now</span><span aria-hidden="true">›</span></button>`
     : '';
 
+  const backupNote = backupDue(state)
+    ? `<div class="card backup-nudge">
+        <p class="eyebrow">Keep your data safe</p>
+        <p>${state.lastBackupAt ? 'It has been a few weeks since your last backup.' : 'You have not saved a backup yet.'}
+          Everything here lives only on this device, so it is worth saving one now and then.</p>
+        <div class="btn-row">
+          <button class="btn primary" data-action="backup">Save backup now</button>
+          <button class="btn ghost" data-action="snooze-backup">Remind me later</button>
+        </div>
+      </div>`
+    : '';
+
   let insight = '';
   if (!pat.ready) {
     insight = `<div class="card"><p class="eyebrow">Your patterns</p>
@@ -187,7 +206,7 @@ function viewToday() {
     : '';
 
   return `<header class="top"><h1>${greeting()}</h1></header>
-    ${hero}${catchUp}
+    ${hero}${catchUp}${backupNote}
     <button class="card garden-peek" data-action="go" data-view="garden" aria-label="Open your garden">
       ${gardenScene(st.total)}
       <div class="peek-stats"><span><strong>${st.total}</strong> ${st.total === 1 ? 'bloom' : 'blooms'}</span><span><strong>${st.current}</strong> day streak</span></div>
@@ -504,6 +523,7 @@ function viewSettings() {
     </div>
     <div class="card"><h2>My data</h2>
       <p class="hint">Your records live only on this device. Save a backup now and then, and use it to move to a new phone.</p>
+      <p class="hint">${lastBackupText(state.lastBackupAt)}</p>
       <div class="btn-row">
         <button class="btn ghost" data-action="backup">Save backup</button>
         <button class="btn ghost" data-action="restore">Restore backup</button>
@@ -690,7 +710,18 @@ const actions = {
   },
   'calendar-file': () => download('clary-reminder.ics', reminders.calendarFile(state.settings.reminderTime), 'text/calendar'),
   'export-csv': () => download(`clary-${today()}.csv`, toCsv(state.entries, labelOf), 'text/csv'),
-  backup: () => download(`clary-backup-${today()}.json`, JSON.stringify(state, null, 2), 'application/json'),
+  backup: () => {
+    download(`clary-backup-${today()}.json`, JSON.stringify(state, null, 2), 'application/json');
+    state.lastBackupAt = Date.now();
+    state.backupSnoozedUntil = null;
+    commit();
+    render(true);
+  },
+  'snooze-backup': () => {
+    state.backupSnoozedUntil = Date.now() + 7 * 86400000;
+    commit();
+    render(true);
+  },
   restore: () => document.getElementById('restore-file').click(),
   wipe: () => {
     if (!confirm('Delete every check-in and setting from this device? This cannot be undone.')) return;

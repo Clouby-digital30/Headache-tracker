@@ -1,5 +1,5 @@
 // Service worker: offline app shell, reminder notifications.
-const CACHE = 'clary-shell-v2';
+const CACHE = 'clary-shell-v3';
 const META_CACHE = 'clary-meta';
 const SHELL = [
   './', 'index.html', 'css/styles.css', 'manifest.webmanifest',

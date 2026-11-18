@@ -37,6 +37,8 @@ export function defaultState() {
     },
     entries: {}, // 'YYYY-MM-DD' -> entry
     seenMilestones: [],
+    lastBackupAt: null, // timestamp (ms) of the last "Save backup", or null
+    backupSnoozedUntil: null, // timestamp (ms): don't remind before this
   };
 }
 
@@ -78,6 +80,19 @@ export function emptyEntry() {
     hrt: false,
     notes: '',
   };
+}
+
+const BACKUP_NUDGE_MIN_ENTRIES = 7; // not worth nagging before there's much to lose
+const BACKUP_NUDGE_DAYS = 21;
+
+// Whether it's time to gently remind the user to save a backup: there's
+// something worth keeping, it's been a while (or never), and they haven't
+// just asked to be left alone about it.
+export function backupDue(state) {
+  if (Object.keys(state.entries).length < BACKUP_NUDGE_MIN_ENTRIES) return false;
+  if (state.backupSnoozedUntil && Date.now() < state.backupSnoozedUntil) return false;
+  if (!state.lastBackupAt) return true;
+  return Date.now() - state.lastBackupAt >= BACKUP_NUDGE_DAYS * 86400000;
 }
 
 // Streak = consecutive checked-in days ending today or yesterday.
