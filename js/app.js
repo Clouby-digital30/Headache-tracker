@@ -25,7 +25,7 @@ const ui = {
   range: 90,
   reward: null,
   showLibrary: false,
-  licenseBusy: false, licenseMsg: null, licenseKeyDraft: '', paywallReturnDate: null,
+  licenseBusy: false, licenseMsg: null, licenseKeyDraft: '', paywallReturnDate: null, installReturnView: 'today',
 };
 // Re-confirm a stored license in the background; re-render if its status changed.
 revalidate(state).then(() => { save(state); if (ui.view !== 'checkin') render(true); }).catch(() => {});
@@ -547,6 +547,43 @@ function viewPaywall() {
     </div>`;
 }
 
+const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+const isAndroid = () => /Android/.test(navigator.userAgent);
+let deferredInstallPrompt = null;
+
+function viewInstall() {
+  if (isStandalone()) {
+    return `<header class="top with-back">
+        <button class="icon-btn" data-action="install-continue" aria-label="${T('back')}">‹</button>
+        <h1>${T('installTitle')}</h1>
+      </header>
+      <div class="card"><p>${T('installAlready')}</p></div>
+      <div class="save-bar"><button class="btn primary big" data-action="install-continue">${T('continueToClary')}</button></div>`;
+  }
+  const androidButton = isAndroid() && deferredInstallPrompt
+    ? `<div class="card"><button class="btn primary big" data-action="install-now">${T('installAndroidButton')}</button></div>` : '';
+  return `<header class="top with-back">
+      <button class="icon-btn" data-action="install-continue" aria-label="${T('back')}">‹</button>
+      <h1>${T('installTitle')}</h1>
+    </header>
+    <div class="card"><p>${T('installWhy')}</p></div>
+    ${androidButton}
+    <div class="card">
+      <h3>${T('installIosTitle')}</h3>
+      <ol class="install-steps">
+        <li>${T('installIosStep1')}</li>
+        <li>${T('installIosStep2')}</li>
+        <li>${T('installIosStep3')}</li>
+      </ol>
+    </div>
+    ${androidButton ? '' : `<div class="card">
+      <h3>${T('installAndroidFallbackTitle')}</h3>
+      <p>${T('installAndroidFallbackStep')}</p>
+    </div>`}
+    <div class="save-bar"><button class="btn primary big" data-action="install-continue">${T('continueToClary')}</button></div>`;
+}
+
 function viewSettings() {
   const s = state.settings, p = state.profile;
   const perm = reminders.permission();
@@ -616,7 +653,7 @@ function viewSettings() {
     <div class="card"><h2>${T('aboutClary')}</h2>
       <p class="hint">${T('aboutClaryDiary')}</p>
       <p class="hint">${T('privacyLine')}</p>
-      <p class="hint">${T('toInstall')}</p>
+      <button class="btn ghost" data-action="open-install">${T('howToInstall')}</button>
     </div>`;
 }
 
@@ -649,7 +686,7 @@ function showReward(date) {
 // ---------- render ----------
 const VIEWS = {
   today: viewToday, checkin: viewCheckin, calendar: viewCalendar, insights: viewInsights,
-  report: viewReport, garden: viewGarden, settings: viewSettings, paywall: viewPaywall,
+  report: viewReport, garden: viewGarden, settings: viewSettings, paywall: viewPaywall, install: viewInstall,
 };
 function navItems() {
   return [['today', T('navToday')], ['calendar', T('navCalendar')], ['insights', T('navInsights')], ['garden', T('navGarden')], ['settings', T('navSettings')]];
@@ -672,7 +709,7 @@ function render(keepScroll = false) {
     return;
   }
   $view.innerHTML = VIEWS[ui.view]();
-  const hideNav = ui.view === 'checkin' || ui.view === 'report';
+  const hideNav = ui.view === 'checkin' || ui.view === 'report' || ui.view === 'install';
   $nav.hidden = hideNav;
   $nav.innerHTML = navItems().map(([id, label]) =>
     `<button class="${ui.view === id ? 'on' : ''}" data-action="go" data-view="${id}" ${ui.view === id ? 'aria-current="page"' : ''}>
@@ -738,6 +775,20 @@ const actions = {
   },
   'close-modal': () => { $modal.hidden = true; $modal.innerHTML = ''; },
   'close-paywall': () => { ui.licenseMsg = null; go('today'); },
+  'open-install': () => { ui.installReturnView = ui.view === 'install' ? 'settings' : ui.view; go('install'); },
+  'install-continue': () => {
+    const back = ui.paywallReturnDate;
+    ui.paywallReturnDate = null;
+    if (back) { openCheckin(back); return; }
+    go(ui.installReturnView || 'today');
+  },
+  'install-now': async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice.catch(() => {});
+    deferredInstallPrompt = null;
+    render(true);
+  },
   buy: () => window.open(BUY_URL, '_blank', 'noopener'),
   'activate-license': async () => {
     const input = document.getElementById('license-key');
@@ -752,6 +803,9 @@ const actions = {
       ui.licenseKeyDraft = '';
       ui.licenseMsg = { ok: true, text: T('activateSuccess') };
       commit();
+      // paywallReturnDate (if any) is kept: the install screen's Continue
+      // button resumes the check-in the purchase was for.
+      if (!isStandalone()) { render(true); go('install'); return; }
       const back = ui.paywallReturnDate;
       ui.paywallReturnDate = null;
       if (back) { openCheckin(back); return; }
@@ -919,6 +973,15 @@ function showUpdateBanner(worker) {
   document.body.prepend(bar);
 }
 actions['apply-update'] = () => waitingWorker?.postMessage('skipWaiting');
+
+// Android/desktop Chrome offer a real install prompt; capture it so the
+// install screen can show a one-tap button instead of manual steps.
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if (ui.view === 'install') render(true);
+});
+window.addEventListener('appinstalled', () => { deferredInstallPrompt = null; if (ui.view === 'install') render(true); });
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').then((reg) => {

@@ -274,6 +274,10 @@ body[data-view="checkin"] main, body[data-view="report"] main { padding-bottom: 
 .sp { flex: 1; font-size: .78rem; color: var(--ink-soft); }
 .sp svg { width: 100%; max-width: 52px; height: auto; display: block; margin: 0 auto 4px; }
 .sp.locked svg { filter: grayscale(1); opacity: .3; }
+.install-steps { padding-left: 22px; }
+.install-steps li { margin-bottom: 10px; }
+.install-steps li:last-child { margin-bottom: 0; }
+
 .milestones { list-style: none; margin: 0; padding: 0; }
 .milestones li { padding: 12px 0; border-top: 1px solid var(--line); }
 .milestones li:first-child { border-top: 0; padding-top: 0; }

@@ -369,6 +369,26 @@ const UI = {
   csvYes: { en: 'yes', nl: 'ja' },
   csvNo: { en: 'no', nl: 'nee' },
 
+  // install guide
+  howToInstall: { en: 'How to install', nl: 'Hoe installeer je dit' },
+  installTitle: { en: 'Install Clary', nl: 'Installeer Clary' },
+  installAlready: { en: 'Clary is already installed on this device.', nl: 'Clary staat al geïnstalleerd op dit toestel.' },
+  installAndroidButton: { en: 'Install Clary', nl: 'Installeer Clary' },
+  installWhy: {
+    en: 'Daily reminders only work reliably from the installed app, and it opens faster, full-screen, without the browser bar.',
+    nl: 'Dagelijkse herinneringen werken alleen betrouwbaar vanuit de geïnstalleerde app, en hij opent sneller, schermvullend, zonder de browserbalk.',
+  },
+  installIosTitle: { en: 'On iPhone or iPad (in Safari)', nl: 'Op iPhone of iPad (in Safari)' },
+  installIosStep1: { en: 'Tap the Share icon at the bottom of the screen.', nl: 'Tik op het deel-icoon onderaan het scherm.' },
+  installIosStep2: { en: 'Scroll down and tap “Add to Home Screen”.', nl: 'Scrol naar beneden en tik op “Zet op beginscherm”.' },
+  installIosStep3: { en: 'Tap “Add” in the top right.', nl: 'Tik rechtsboven op “Voeg toe”.' },
+  installAndroidFallbackTitle: { en: 'On Android', nl: 'Op Android' },
+  installAndroidFallbackStep: {
+    en: 'Open the browser menu (⋮) and choose “Install app” or “Add to Home screen”.',
+    nl: 'Open het browsermenu (⋮) en kies “App installeren” of “Toevoegen aan startscherm”.',
+  },
+  continueToClary: { en: 'Continue', nl: 'Doorgaan' },
+
   // license / paywall
   license: { en: 'License', nl: 'Licentie' },
   licenseUnlocked: { en: 'Clary is unlocked on this device.', nl: 'Clary is ontgrendeld op dit toestel.' },
