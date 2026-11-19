@@ -142,6 +142,7 @@ p:last-child { margin-bottom: 0; }
 .top { padding: 16px 4px 16px; }
 .top.with-back { display: flex; align-items: center; gap: 12px; }
 .eyebrow { font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--sage-deep); font-weight: 600; margin-bottom: 6px; }
+.eyebrow.center { text-align: center; }
 .hint { color: var(--ink-soft); font-size: .92rem; }
 .hint.center { text-align: center; margin: 4px 12px 16px; }
 .fine { color: var(--ink-soft); font-size: .85rem; }
@@ -351,6 +352,7 @@ body[data-view="checkin"] main, body[data-view="report"] main { padding-bottom: 
 /* onboarding */
 .onboard { padding-top: 24px; text-align: center; }
 .onboard .card { text-align: left; }
+.lang-pick { justify-content: center; margin: 4px 0 20px; }
 .brand-mark svg { width: 84px; height: auto; }
 .lead { font-size: 1.1rem; color: var(--ink-soft); margin: 8px 8px 24px; }
 

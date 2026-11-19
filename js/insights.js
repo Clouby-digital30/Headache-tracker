@@ -81,14 +81,22 @@ export function findPatterns(entries) {
   return { ready: true, needed: 0, risks, helpers };
 }
 
-export function describePattern(p, label) {
-  const pct = (x) => `${Math.round(x * 100)}%`;
-  const when = p.lag === 0
-    ? `On days with ${label}, you had a headache`
-    : p.lag === 1
-      ? `The day after ${label}, you had a headache`
-      : `Two days after ${label}, you had a headache`;
-  return `${when} ${pct(p.withRate)} of the time, compared with ${pct(p.withoutRate)} otherwise.`;
+const PATTERN_SENTENCE = {
+  en: (label, lag, withPct, withoutPct) => {
+    const lead = lag === 0 ? `On days with ${label}, you had a headache`
+      : lag === 1 ? `The day after ${label}, you had a headache`
+        : `Two days after ${label}, you had a headache`;
+    return `${lead} ${withPct}% of the time, compared with ${withoutPct}% otherwise.`;
+  },
+  nl: (label, lag, withPct, withoutPct) => {
+    const lead = lag === 0 ? `Op dagen met ${label}` : lag === 1 ? `De dag na ${label}` : `Twee dagen na ${label}`;
+    return `${lead} had je ${withPct}% van de keren hoofdpijn, tegenover ${withoutPct}% op andere dagen.`;
+  },
+};
+
+export function describePattern(p, label, lang = 'en') {
+  const sentence = PATTERN_SENTENCE[lang] || PATTERN_SENTENCE.en;
+  return sentence(label, p.lag, Math.round(p.withRate * 100), Math.round(p.withoutRate * 100));
 }
 
 // Totals for a date range (inclusive).
@@ -123,15 +131,16 @@ export function monthly(entries, count, endStr) {
       logged++;
       if (hadHeadache(entries[d])) headacheDays++;
     }
-    out.push({ key, label: m.toLocaleString('en', { month: 'short' }), year: m.getFullYear(), headacheDays, logged });
+    // `month` (0-based) and `year` let the caller format the label in its own language.
+    out.push({ key, month: m.getMonth(), year: m.getFullYear(), headacheDays, logged });
   }
   return out;
 }
 
-// Headache days by day of the week (Mon..Sun).
+// Headache days by day of the week. `index` is 0 (Monday) to 6 (Sunday); the
+// caller formats the weekday name in its own language.
 export function byWeekday(entries, from, to) {
-  const names = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-  const out = names.map((label) => ({ label, headacheDays: 0, logged: 0 }));
+  const out = Array.from({ length: 7 }, (_, index) => ({ index, headacheDays: 0, logged: 0 }));
   for (const d of Object.keys(entries)) {
     if (d < from || d > to) continue;
     const slot = out[(parseDate(d).getDay() + 6) % 7];

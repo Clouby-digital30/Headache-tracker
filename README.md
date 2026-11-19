@@ -25,6 +25,12 @@ stored on the user's own device.
 - **Reminders**: a daily notification at a time you choose, plus a repeating calendar alert.
 - **Light and dark appearance**, following the device by default or set directly in Settings.
 - **Faster logging**: copy yesterday's check-in, or clear a day you logged by mistake.
+- **Headache onset**: woke up with it, built up gradually, or came on suddenly, plus a "felt it
+  coming beforehand" symptom tag for premonitory warning signs.
+- **Backup reminder**: once there is enough to lose and no recent backup, Today shows a gentle
+  prompt to save one.
+- **English and Dutch**, chosen at first launch and changeable any time in Settings. Covers every
+  screen, the notification, the calendar file, the doctor report and the CSV export.
 
 ## Run it
 
@@ -43,7 +49,8 @@ To publish, host the folder on any static host with HTTPS, such as GitHub Pages.
 | --- | --- |
 | `index.html`, `css/styles.css` | App shell and styling |
 | `js/app.js` | Screens and interaction |
-| `js/data.js` | Trigger library, symptom lists, milestones, self-care cards |
+| `js/data.js` | Trigger library, symptom lists, milestones, self-care cards - each label as `{ en, nl }` |
+| `js/i18n.js` | UI text in both languages, and the `t(lang, key, vars)` lookup |
 | `js/store.js` | Storage on the device (localStorage) and date helpers |
 | `js/insights.js` | Pattern recognition and statistics |
 | `js/garden.js`, `js/charts.js` | Garden and charts (SVG) |

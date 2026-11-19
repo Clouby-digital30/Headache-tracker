@@ -39,14 +39,14 @@ export function barChart(data, { ariaLabel = 'Chart' } = {}) {
   return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${escAttr(ariaLabel)}">${grid}${bars}</svg>`;
 }
 
-/** Two labelled horizontal bars: with the factor vs without it. */
-export function compareBars(withRate, withoutRate) {
+/** Two labelled horizontal bars: with the factor vs without it. Labels are passed in pre-translated. */
+export function compareBars(withRate, withoutRate, withLabel = 'With', withoutLabel = 'Without') {
   const row = (cls, label, rate) => `<div class="cmp-row">
       <span class="cmp-label">${label}</span>
       <span class="cmp-track"><span class="cmp-fill ${cls}" style="width:${Math.max(2, Math.round(rate * 100))}%"></span></span>
       <span class="cmp-value">${Math.round(rate * 100)}%</span>
     </div>`;
-  return `<div class="cmp">${row('with', 'With', withRate)}${row('without', 'Without', withoutRate)}</div>`;
+  return `<div class="cmp">${row('with', withLabel, withRate)}${row('without', withoutLabel, withoutRate)}</div>`;
 }
 
 /** A simple ranked list with bars proportional to the largest value. Labels and counts are passed pre-escaped. */

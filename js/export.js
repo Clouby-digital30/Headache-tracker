@@ -1,4 +1,5 @@
 // CSV export, JSON backup and file download helpers.
+import { t } from './i18n.js';
 
 export function download(filename, text, type) {
   const url = URL.createObjectURL(new Blob([text], { type }));
@@ -17,21 +18,24 @@ function cell(v) {
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-/** labelOf(id) turns stored ids into readable names. */
-export function toCsv(entries, labelOf) {
-  const head = ['date', 'headache', 'intensity', 'type', 'duration', 'locations', 'symptoms', 'impact',
-    'medication', 'relief', 'period', 'stress', 'sleep_quality', 'sleep_hours', 'mood', 'triggers',
-    'menopause_symptoms', 'hrt_taken', 'notes'];
+/** labelOf(id) turns stored ids into readable names, in the current language. */
+export function toCsv(entries, labelOf, lang = 'en') {
+  const head = [
+    'csvDate', 'csvHeadache', 'csvIntensity', 'csvType', 'csvOnset', 'csvDuration', 'csvLocations', 'csvSymptoms',
+    'csvImpact', 'csvMedication', 'csvRelief', 'csvPeriod', 'csvStress', 'csvSleepQuality', 'csvSleepHours', 'csvMood',
+    'csvTriggers', 'csvMenopauseSymptoms', 'csvHrtTaken', 'csvNotes',
+  ].map((k) => t(lang, k));
+  const yn = (b) => t(lang, b ? 'csvYes' : 'csvNo');
   const rows = Object.keys(entries).sort().map((d) => {
     const e = entries[d];
     const h = e.headache || {};
     const names = (list) => (list || []).map(labelOf);
     return [
-      d, h.had ? 'yes' : 'no', h.had ? h.intensity : '', h.had ? labelOf(h.type) : '', h.had ? labelOf(h.duration) : '',
+      d, yn(h.had), h.had ? h.intensity : '', h.had ? labelOf(h.type) : '', h.had ? labelOf(h.onset) : '', h.had ? labelOf(h.duration) : '',
       h.had ? names(h.locations) : '', h.had ? names(h.symptoms) : '', h.had ? labelOf(h.impact) : '',
       h.had ? (h.meds || []) : '', h.had ? labelOf(h.relief) : '',
-      e.period || 'none', e.stress || '', e.sleep || '', e.sleepHours || '', e.mood || '',
-      names(e.triggers), names(e.meno), e.hrt ? 'yes' : 'no', e.notes || '',
+      labelOf(e.period || 'none'), e.stress || '', e.sleep || '', e.sleepHours || '', e.mood || '',
+      names(e.triggers), names(e.meno), yn(e.hrt), e.notes || '',
     ].map(cell).join(',');
   });
   return [head.join(','), ...rows].join('\n');
