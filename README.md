@@ -33,6 +33,9 @@ stored on the user's own device.
   screen, the notification, the calendar file, the doctor report and the CSV export.
 - **14 free check-ins, then a one-time unlock.** Existing check-ins, the calendar, insights and
   garden stay fully visible either way; only adding a new day is gated. See "Selling Clary" below.
+- **Install guide**: step-by-step per platform (a real one-tap button on Android/Chrome when the
+  browser offers it, manual steps for iPhone), reachable from Settings and shown automatically
+  right after a license activates.
 
 ## Run it
 
