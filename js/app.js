@@ -14,6 +14,7 @@ import { barChart, compareBars, rankList } from './charts.js';
 import { download, toCsv } from './export.js';
 import { t, LOCALE } from './i18n.js';
 import * as reminders from './reminders.js';
+import { BUY_URL, TRIAL_LIMIT, trialUsed, isLicensed, trialExhausted, applyLicenseKey, revalidate, releaseDevice } from './license.js';
 
 let state = load();
 save(state); // persist any one-time migration (e.g. a newly introduced trigger) right away
@@ -24,7 +25,10 @@ const ui = {
   range: 90,
   reward: null,
   showLibrary: false,
+  licenseBusy: false, licenseMsg: null, licenseKeyDraft: '', paywallReturnDate: null,
 };
+// Re-confirm a stored license in the background; re-render if its status changed.
+revalidate(state).then(() => { save(state); if (ui.view !== 'checkin') render(true); }).catch(() => {});
 
 const lang = () => state.settings.lang;
 const T = (key, vars) => t(lang(), key, vars);
@@ -512,6 +516,37 @@ function viewGarden() {
     <div class="card selfcare"><p class="eyebrow">${T('todaysCard')}</p><p class="quote">${esc(cardFor(today()))}</p></div>`;
 }
 
+// Shared by Settings and the paywall: current status, a key-entry form, and
+// a buy link. ui.licenseBusy/ui.licenseMsg hold the in-flight activate state.
+function licenseCard() {
+  const lic = state.license;
+  const status = isLicensed(state)
+    ? `<p>${T('licenseUnlocked')}</p>`
+    : `<p>${T('licenseTrialStatus', { used: Math.min(trialUsed(state), TRIAL_LIMIT), limit: TRIAL_LIMIT })}</p>`;
+  const msg = ui.licenseMsg ? `<p class="hint${ui.licenseMsg.ok ? '' : ' error'}">${esc(ui.licenseMsg.text)}</p>` : '';
+  return `${status}${msg}
+    <div class="add-row">
+      <input type="text" id="license-key" placeholder="${T('licenseKeyPlaceholder')}" aria-label="${T('licenseKeyAria')}" value="${esc(ui.licenseKeyDraft || '')}" ${ui.licenseBusy ? 'disabled' : ''}>
+      <button class="btn ghost" data-action="activate-license" ${ui.licenseBusy ? 'disabled' : ''}>${T(ui.licenseBusy ? 'activating' : 'activate')}</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn primary" data-action="buy">${T('buyClary')}</button>
+      ${isLicensed(state) && !lic.grandfathered ? `<button class="btn ghost" data-action="free-up-device">${T('freeUpDevice')}</button>` : ''}
+    </div>`;
+}
+
+function viewPaywall() {
+  return `<header class="top with-back">
+      <button class="icon-btn" data-action="close-paywall" aria-label="${T('back')}">‹</button>
+      <h1>${T('paywallTitle')}</h1>
+    </header>
+    <div class="card">
+      <p>${T('paywallExplain')}</p>
+      <p class="hint">${T('alreadyBought')}</p>
+      ${licenseCard()}
+    </div>`;
+}
+
 function viewSettings() {
   const s = state.settings, p = state.profile;
   const perm = reminders.permission();
@@ -566,6 +601,7 @@ function viewSettings() {
       <div class="add-row"><input type="text" id="new-med" maxlength="40" placeholder="${T('newMedPlaceholder')}" aria-label="${T('newMedAria')}">
         <button class="btn ghost" data-action="add-med">${T('add')}</button></div>
     </div>
+    <div class="card"><h2>${T('license')}</h2>${licenseCard()}</div>
     <div class="card"><h2>${T('myData')}</h2>
       <p class="hint">${T('dataLivesHere')}</p>
       <p class="hint">${lastBackupText(state.lastBackupAt)}</p>
@@ -613,7 +649,7 @@ function showReward(date) {
 // ---------- render ----------
 const VIEWS = {
   today: viewToday, checkin: viewCheckin, calendar: viewCalendar, insights: viewInsights,
-  report: viewReport, garden: viewGarden, settings: viewSettings,
+  report: viewReport, garden: viewGarden, settings: viewSettings, paywall: viewPaywall,
 };
 function navItems() {
   return [['today', T('navToday')], ['calendar', T('navCalendar')], ['insights', T('navInsights')], ['garden', T('navGarden')], ['settings', T('navSettings')]];
@@ -651,6 +687,7 @@ function go(view) { ui.view = view; render(); }
 function openCheckin(date) {
   if (date > today()) return;
   const existing = state.entries[date];
+  if (!existing && trialExhausted(state)) { ui.paywallReturnDate = date; go('paywall'); return; }
   const base = emptyEntry();
   ui.draft = existing
     ? { ...base, ...structuredClone(existing), headache: { ...base.headache, ...structuredClone(existing.headache || {}) } }
@@ -700,6 +737,36 @@ const actions = {
     if (wasNew) showReward(date);
   },
   'close-modal': () => { $modal.hidden = true; $modal.innerHTML = ''; },
+  'close-paywall': () => { ui.licenseMsg = null; go('today'); },
+  buy: () => window.open(BUY_URL, '_blank', 'noopener'),
+  'activate-license': async () => {
+    const input = document.getElementById('license-key');
+    const key = input ? input.value : (ui.licenseKeyDraft || '');
+    if (!key.trim()) return;
+    ui.licenseBusy = true;
+    ui.licenseMsg = null;
+    render(true);
+    const result = await applyLicenseKey(state, key);
+    ui.licenseBusy = false;
+    if (result.ok) {
+      ui.licenseKeyDraft = '';
+      ui.licenseMsg = { ok: true, text: T('activateSuccess') };
+      commit();
+      const back = ui.paywallReturnDate;
+      ui.paywallReturnDate = null;
+      if (back) { openCheckin(back); return; }
+    } else {
+      ui.licenseMsg = { ok: false, text: result.network ? T('licenseErrorNetwork') : T('licenseErrorGeneric') };
+      commit();
+    }
+    render(true);
+  },
+  'free-up-device': async () => {
+    if (!confirm(T('confirmFreeUpDevice'))) return;
+    await releaseDevice(state);
+    commit();
+    render(true);
+  },
   'copy-yesterday': () => {
     const prev = state.entries[addDays(ui.draftDate, -1)];
     if (!prev) return;
@@ -804,6 +871,8 @@ document.addEventListener('input', (ev) => {
   } else if (el.dataset.setting) {
     setPath(state, el.dataset.setting, el.value);
     commit();
+  } else if (el.id === 'license-key') {
+    ui.licenseKeyDraft = el.value;
   }
 });
 

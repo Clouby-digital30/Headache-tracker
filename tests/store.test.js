@@ -70,3 +70,25 @@ test('leaves a customised medication list alone when the language changes', () =
   const swapped = swapDefaultMeds(settings, 'nl');
   assert.deepEqual(swapped.meds, ['My own pill']);
 });
+
+test('grandfathers a state saved before licensing existed', () => {
+  const saved = defaultState();
+  delete saved.license; // as an old save file would be, before this field existed
+  const loaded = normalize(saved);
+  assert.equal(loaded.license.valid, true);
+  assert.equal(loaded.license.grandfathered, true);
+});
+
+test('a brand-new state is not grandfathered', () => {
+  const loaded = normalize(null);
+  assert.equal(loaded.license.valid, false);
+  assert.ok(!loaded.license.grandfathered);
+});
+
+test('an existing license is kept as saved, not grandfathered', () => {
+  const saved = defaultState();
+  saved.license = { key: 'abc', instanceId: '1', valid: true };
+  const loaded = normalize(saved);
+  assert.equal(loaded.license.key, 'abc');
+  assert.ok(!loaded.license.grandfathered);
+});

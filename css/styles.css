@@ -144,6 +144,7 @@ p:last-child { margin-bottom: 0; }
 .eyebrow { font-size: .8rem; letter-spacing: .08em; text-transform: uppercase; color: var(--sage-deep); font-weight: 600; margin-bottom: 6px; }
 .eyebrow.center { text-align: center; }
 .hint { color: var(--ink-soft); font-size: .92rem; }
+.hint.error { color: var(--danger-ink); }
 .hint.center { text-align: center; margin: 4px 12px 16px; }
 .fine { color: var(--ink-soft); font-size: .85rem; }
 
