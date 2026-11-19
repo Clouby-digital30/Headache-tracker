@@ -1,5 +1,5 @@
 import {
-  TRIGGER_GROUPS, PERIOD_LEVELS, HEADACHE_TYPES, DURATIONS, LOCATIONS, HEADACHE_SYMPTOMS, IMPACT, RELIEF,
+  TRIGGER_GROUPS, PERIOD_LEVELS, HEADACHE_TYPES, DURATIONS, ONSET, LOCATIONS, HEADACHE_SYMPTOMS, IMPACT, RELIEF,
   MENO_SYMPTOMS, STAGES, DERIVED_LABELS, MILESTONES, SPECIES, CARDS,
 } from './data.js';
 import { load, save, today, addDays, parseDate, toDateStr, emptyEntry, streaks, defaultState, normalize, backupDue } from './store.js';
@@ -42,7 +42,7 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '
 // ---------- labels ----------
 const LABELS = new Map();
 for (const g of TRIGGER_GROUPS) for (const [id, label] of g.items) LABELS.set(id, label);
-for (const list of [PERIOD_LEVELS, HEADACHE_TYPES, DURATIONS, LOCATIONS, HEADACHE_SYMPTOMS, IMPACT, RELIEF, MENO_SYMPTOMS]) {
+for (const list of [PERIOD_LEVELS, HEADACHE_TYPES, DURATIONS, ONSET, LOCATIONS, HEADACHE_SYMPTOMS, IMPACT, RELIEF, MENO_SYMPTOMS]) {
   for (const [id, label] of list) LABELS.set(id, label);
 }
 function labelOf(id) {
@@ -233,6 +233,7 @@ function viewCheckin() {
     </div>` : '';
 
   const headacheMore = h.had ? `
+    <div class="field"><span>How did it start?</span>${chips('headache.onset', ONSET, h.onset, false)}</div>
     <div class="field"><span>How long did it last?</span>${chips('headache.duration', DURATIONS, h.duration, false)}</div>
     <div class="field"><span>Where did you feel it?</span>${chips('headache.locations', LOCATIONS, h.locations, true)}</div>
     <div class="field"><span>What came with it?</span>${chips('headache.symptoms', HEADACHE_SYMPTOMS, h.symptoms, true)}</div>
@@ -420,7 +421,7 @@ function viewReport() {
   const months = monthly(state.entries, 12, to).filter((m) => m.logged > 0);
   const rows = Object.keys(state.entries).sort().filter((d) => d >= from && d <= to && state.entries[d].headache.had).map((d) => {
     const e = state.entries[d], h = e.headache;
-    return `<tr><td>${d}</td><td>${h.intensity}</td><td>${esc(labelOf(h.type))}</td><td>${esc(labelOf(h.duration))}</td>
+    return `<tr><td>${d}</td><td>${h.intensity}</td><td>${esc(labelOf(h.type))}</td><td>${esc(labelOf(h.onset))}</td><td>${esc(labelOf(h.duration))}</td>
       <td>${esc(h.symptoms.map(labelOf).join(', '))}</td><td>${esc(h.meds.join(', '))}${h.relief ? ` (${esc(labelOf(h.relief).toLowerCase())})` : ''}</td>
       <td>${e.period !== 'none' ? esc(labelOf(e.period)) : ''}</td><td>${esc(e.triggers.map(labelOf).join(', '))}</td></tr>`;
   }).join('');
@@ -448,7 +449,7 @@ function viewReport() {
     ? `<ul>${pat.risks.slice(0, 8).map((p) => `<li>${esc(describePattern(p, factorPhrase(p.id)))} (${p.days} days)</li>`).join('')}</ul>`
     : '<p>No clear patterns yet.</p>'}
       <h3>Headache log</h3>
-      ${rows ? `<table class="log"><tr><th>Date</th><th>Intensity</th><th>Type</th><th>Duration</th><th>Symptoms</th><th>Medication</th><th>Period</th><th>Logged factors</th></tr>${rows}</table>` : '<p>No headaches recorded in this period.</p>'}
+      ${rows ? `<table class="log"><tr><th>Date</th><th>Intensity</th><th>Type</th><th>Onset</th><th>Duration</th><th>Symptoms</th><th>Medication</th><th>Period</th><th>Logged factors</th></tr>${rows}</table>` : '<p>No headaches recorded in this period.</p>'}
       <p class="fine">Self-reported with Clary. Patterns are statistical associations, not diagnoses.</p>
     </article>`;
 }

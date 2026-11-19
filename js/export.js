@@ -19,7 +19,7 @@ function cell(v) {
 
 /** labelOf(id) turns stored ids into readable names. */
 export function toCsv(entries, labelOf) {
-  const head = ['date', 'headache', 'intensity', 'type', 'duration', 'locations', 'symptoms', 'impact',
+  const head = ['date', 'headache', 'intensity', 'type', 'onset', 'duration', 'locations', 'symptoms', 'impact',
     'medication', 'relief', 'period', 'stress', 'sleep_quality', 'sleep_hours', 'mood', 'triggers',
     'menopause_symptoms', 'hrt_taken', 'notes'];
   const rows = Object.keys(entries).sort().map((d) => {
@@ -27,7 +27,7 @@ export function toCsv(entries, labelOf) {
     const h = e.headache || {};
     const names = (list) => (list || []).map(labelOf);
     return [
-      d, h.had ? 'yes' : 'no', h.had ? h.intensity : '', h.had ? labelOf(h.type) : '', h.had ? labelOf(h.duration) : '',
+      d, h.had ? 'yes' : 'no', h.had ? h.intensity : '', h.had ? labelOf(h.type) : '', h.had ? labelOf(h.onset) : '', h.had ? labelOf(h.duration) : '',
       h.had ? names(h.locations) : '', h.had ? names(h.symptoms) : '', h.had ? labelOf(h.impact) : '',
       h.had ? (h.meds || []) : '', h.had ? labelOf(h.relief) : '',
       e.period || 'none', e.stress || '', e.sleep || '', e.sleepHours || '', e.mood || '',

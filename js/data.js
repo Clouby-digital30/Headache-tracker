@@ -118,13 +118,19 @@ export const DURATIONS = [
   ['lt1', 'Under 1 hour'], ['1to4', '1 to 4 hours'], ['4to12', '4 to 12 hours'], ['12to24', '12 to 24 hours'], ['gt24', 'Over a day'],
 ];
 
+// How the headache arrived: a sudden onset is worth flagging to a doctor,
+// while waking up with one or a slow build are more typical patterns.
+export const ONSET = [
+  ['woke_with_it', 'Woke up with it'], ['gradual', 'Built up gradually'], ['sudden', 'Came on suddenly'],
+];
+
 export const LOCATIONS = [
   ['left', 'Left side'], ['right', 'Right side'], ['both', 'Both sides'], ['forehead', 'Forehead'],
   ['temples', 'Temples'], ['eyes', 'Behind the eyes'], ['back', 'Back of head'], ['neck', 'Neck'],
 ];
 
 export const HEADACHE_SYMPTOMS = [
-  ['aura', 'Aura / visual changes'], ['nausea', 'Nausea'], ['vomiting', 'Vomiting'],
+  ['felt_coming', 'Felt it coming beforehand'], ['aura', 'Aura / visual changes'], ['nausea', 'Nausea'], ['vomiting', 'Vomiting'],
   ['light', 'Light sensitivity'], ['sound', 'Sound sensitivity'], ['smell', 'Smell sensitivity'],
   ['dizzy', 'Dizziness'], ['throbbing', 'Throbbing'], ['pressing', 'Pressing / tight band'],
   ['fog', 'Brain fog'], ['tingling', 'Tingling or numbness'],

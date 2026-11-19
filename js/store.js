@@ -84,7 +84,7 @@ export function save(state) {
 
 export function emptyEntry() {
   return {
-    headache: { had: false, intensity: 5, type: '', duration: '', locations: [], symptoms: [], meds: [], relief: '', impact: '' },
+    headache: { had: false, intensity: 5, type: '', onset: '', duration: '', locations: [], symptoms: [], meds: [], relief: '', impact: '' },
     period: 'none',
     stress: 0, // 1-5, 0 = not answered
     sleep: 0, // 1-5 quality
