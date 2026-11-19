@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultState, backupDue, normalize } from '../js/store.js';
+import { defaultState, backupDue, normalize, swapDefaultMeds } from '../js/store.js';
+import { DEFAULT_MEDS } from '../js/data.js';
 
 function withEntries(n) {
   const state = defaultState();
@@ -56,4 +57,16 @@ test('removing a migrated trigger again sticks - it does not come back', () => {
   afterMigration.settings.trackedTriggers = afterMigration.settings.trackedTriggers.filter((t) => t !== 'tired');
   const loadedAgain = normalize(afterMigration);
   assert.ok(!loadedAgain.settings.trackedTriggers.includes('tired'));
+});
+
+test('swaps the medication list when it is still an unmodified default', () => {
+  const settings = { meds: [...DEFAULT_MEDS.en] };
+  const swapped = swapDefaultMeds(settings, 'nl');
+  assert.deepEqual(swapped.meds, DEFAULT_MEDS.nl);
+});
+
+test('leaves a customised medication list alone when the language changes', () => {
+  const settings = { meds: ['My own pill'] };
+  const swapped = swapDefaultMeds(settings, 'nl');
+  assert.deepEqual(swapped.meds, ['My own pill']);
 });

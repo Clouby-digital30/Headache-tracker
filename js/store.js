@@ -26,13 +26,14 @@ export function defaultState() {
     version: 1,
     profile: { name: '', stage: 'irregular', onboarded: false },
     settings: {
+      lang: 'en', // 'en' | 'nl'
       theme: 'auto', // 'auto' | 'light' | 'dark'
       reminderOn: false,
       reminderTime: '20:00',
       trackedTriggers: [...DEFAULT_TRIGGERS],
       appliedTriggerUpdates: [], // ids of TRIGGER_UPDATES already merged in, so they aren't repeated
       customTriggers: [], // [{id, label}]
-      meds: [...DEFAULT_MEDS],
+      meds: [...DEFAULT_MEDS.en],
       usesHrt: false,
       trackMeno: true,
     },
@@ -56,6 +57,19 @@ function applyTriggerUpdates(settings) {
   return { ...settings, trackedTriggers: tracked, appliedTriggerUpdates: applied };
 }
 
+// Fixes entries saved before 'none' was split into its own id per list (it
+// used to mean three different things - no period, no impact, no relief -
+// which collided in a single id-to-label lookup).
+function migrateEntries(entries) {
+  for (const e of Object.values(entries)) {
+    const h = e && e.headache;
+    if (!h) continue;
+    if (h.impact === 'none') h.impact = 'carried_on';
+    if (h.relief === 'none') h.relief = 'no_relief';
+  }
+  return entries;
+}
+
 export function normalize(raw) {
   const base = defaultState();
   if (!raw || typeof raw !== 'object') return base;
@@ -65,7 +79,7 @@ export function normalize(raw) {
     ...raw,
     profile: { ...base.profile, ...(raw.profile || {}) },
     settings,
-    entries: raw.entries && typeof raw.entries === 'object' ? raw.entries : {},
+    entries: migrateEntries(raw.entries && typeof raw.entries === 'object' ? raw.entries : {}),
     seenMilestones: Array.isArray(raw.seenMilestones) ? raw.seenMilestones : [],
   };
 }
@@ -108,6 +122,19 @@ export function backupDue(state) {
   if (state.backupSnoozedUntil && Date.now() < state.backupSnoozedUntil) return false;
   if (!state.lastBackupAt) return true;
   return Date.now() - state.lastBackupAt >= BACKUP_NUDGE_DAYS * 86400000;
+}
+
+const arraysEqual = (a, b) => a.length === b.length && a.every((v, i) => v === b[i]);
+
+// If the medication list is still exactly one language's unmodified default
+// set (nothing added or removed), swap it to the other language's defaults.
+// Leaves a list the user has customised alone.
+export function swapDefaultMeds(settings, lang) {
+  const other = lang === 'nl' ? 'en' : 'nl';
+  if (arraysEqual(settings.meds, DEFAULT_MEDS[other]) || arraysEqual(settings.meds, DEFAULT_MEDS[lang])) {
+    return { ...settings, meds: [...DEFAULT_MEDS[lang]] };
+  }
+  return settings;
 }
 
 // Streak = consecutive checked-in days ending today or yesterday.

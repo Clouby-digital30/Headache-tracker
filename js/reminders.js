@@ -3,6 +3,7 @@
 // 2. periodic background sync where the browser supports it (installed app),
 // 3. a repeating calendar event the user can add, which always works.
 import { today } from './store.js';
+import { t } from './i18n.js';
 
 const META_CACHE = 'clary-meta';
 let timer = null;
@@ -15,23 +16,25 @@ export async function askPermission() {
   return Notification.requestPermission();
 }
 
-async function notify() {
+async function notify(lang) {
   const reg = await navigator.serviceWorker.ready;
-  return reg.showNotification('How are you feeling today?', {
-    body: 'A 30-second check-in, and a new flower for your garden.',
+  return reg.showNotification(t(lang, 'notifyTitle'), {
+    body: t(lang, 'notifyBody'),
     icon: 'icons/icon-192.png',
     badge: 'icons/icon-192.png',
     tag: 'clary-daily',
   });
 }
 
-// Tell the service worker what it needs to know (it cannot read localStorage).
+// Tell the service worker what it needs to know (it cannot read localStorage,
+// and it shows its own notification text in the right language from this).
 async function writeMeta(state) {
   if (!('caches' in window)) return;
   const dates = Object.keys(state.entries).sort();
   const meta = {
     reminderOn: state.settings.reminderOn,
     reminderTime: state.settings.reminderTime,
+    lang: state.settings.lang,
     lastCheckin: dates[dates.length - 1] || '',
   };
   const cache = await caches.open(META_CACHE);
@@ -49,7 +52,7 @@ export async function sync(state) {
   if (next <= new Date()) next.setDate(next.getDate() + 1);
   timer = setTimeout(async () => {
     const fresh = JSON.parse(localStorage.getItem('clary.v1') || '{}');
-    if (!(fresh.entries || {})[today()]) await notify().catch(() => {});
+    if (!(fresh.entries || {})[today()]) await notify(fresh.settings?.lang || 'en').catch(() => {});
     sync(state);
   }, next - new Date());
 
@@ -60,12 +63,13 @@ export async function sync(state) {
 }
 
 // A repeating calendar event with an alert: dependable on every phone.
-export function calendarFile(time) {
+export function calendarFile(time, lang = 'en') {
   const [h, m] = time.split(':');
   const d = new Date();
   const p = (n) => String(n).padStart(2, '0');
   const start = `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}T${h}${m}00`;
   const url = location.href.split('#')[0];
+  const summary = t(lang, 'notifyTitle');
   return [
     'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Clary//Daily check-in//EN',
     'BEGIN:VEVENT',
@@ -74,10 +78,10 @@ export function calendarFile(time) {
     `DTSTART:${start}`,
     'DURATION:PT5M',
     'RRULE:FREQ=DAILY',
-    'SUMMARY:Clary check-in',
-    `DESCRIPTION:How are you feeling today? ${url}`,
+    `SUMMARY:${summary}`,
+    `DESCRIPTION:${summary} ${url}`,
     `URL:${url}`,
-    'BEGIN:VALARM', 'ACTION:DISPLAY', 'DESCRIPTION:Clary check-in', 'TRIGGER:PT0M', 'END:VALARM',
+    'BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${summary}`, 'TRIGGER:PT0M', 'END:VALARM',
     'END:VEVENT', 'END:VCALENDAR',
   ].join('\r\n');
 }

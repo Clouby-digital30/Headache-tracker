@@ -129,3 +129,10 @@ test('flags frequent pain relief averaged over three months', () => {
   const ok = medOveruse(light, addDays('2026-01-01', 89));
   assert.equal(ok.flag, false);
 });
+
+test('describes a pattern in Dutch when asked', () => {
+  const p = { lag: 1, withRate: 1, withoutRate: 0 };
+  assert.equal(describePattern(p, 'hoge stress', 'nl'), 'De dag na hoge stress had je 100% van de keren hoofdpijn, tegenover 0% op andere dagen.');
+  // default stays English, unaffected by the new optional argument
+  assert.equal(describePattern(p, 'high stress'), 'The day after high stress, you had a headache 100% of the time, compared with 0% otherwise.');
+});

@@ -1,12 +1,20 @@
 // Service worker: offline app shell, reminder notifications.
-const CACHE = 'clary-shell-v5';
+const CACHE = 'clary-shell-v6';
 const META_CACHE = 'clary-meta';
 const SHELL = [
   './', 'index.html', 'css/styles.css', 'manifest.webmanifest',
   'js/app.js', 'js/data.js', 'js/store.js', 'js/insights.js', 'js/garden.js',
-  'js/charts.js', 'js/reminders.js', 'js/export.js',
+  'js/charts.js', 'js/reminders.js', 'js/export.js', 'js/i18n.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];
+
+// Kept in step with notifyTitle/notifyBody in js/i18n.js. A service worker
+// registered as a classic script can't import that module, so it is small
+// enough to duplicate rather than add module-worker plumbing for two lines.
+const NOTIFY = {
+  en: { title: 'How are you feeling today?', body: 'A 30-second check-in, and a new flower for your garden.' },
+  nl: { title: 'Hoe voel je je vandaag?', body: 'Een check-in van 30 seconden, en een nieuwe bloem voor je tuin.' },
+};
 
 self.addEventListener('install', (e) => {
   // Cache the new shell, but wait for the page to ask before taking over:
@@ -56,8 +64,9 @@ async function maybeRemind() {
   const [h, m] = (meta.reminderTime || '20:00').split(':').map(Number);
   const due = now.getHours() * 60 + now.getMinutes() >= h * 60 + m;
   if (!meta.reminderOn || !due || meta.lastCheckin === todayStr || meta.lastNotified === todayStr) return;
-  await self.registration.showNotification('How are you feeling today?', {
-    body: 'A 30-second check-in, and a new flower for your garden.',
+  const text = NOTIFY[meta.lang] || NOTIFY.en;
+  await self.registration.showNotification(text.title, {
+    body: text.body,
     icon: 'icons/icon-192.png',
     badge: 'icons/icon-192.png',
     tag: 'clary-daily',

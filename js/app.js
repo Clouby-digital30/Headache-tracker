@@ -2,13 +2,17 @@ import {
   TRIGGER_GROUPS, PERIOD_LEVELS, HEADACHE_TYPES, DURATIONS, ONSET, LOCATIONS, HEADACHE_SYMPTOMS, IMPACT, RELIEF,
   MENO_SYMPTOMS, STAGES, DERIVED_LABELS, MILESTONES, SPECIES, CARDS,
 } from './data.js';
-import { load, save, today, addDays, parseDate, toDateStr, emptyEntry, streaks, defaultState, normalize, backupDue } from './store.js';
+import {
+  load, save, today, addDays, parseDate, toDateStr, emptyEntry, streaks, defaultState, normalize, backupDue,
+  swapDefaultMeds,
+} from './store.js';
 import {
   findPatterns, describePattern, summarize, monthly, byWeekday, medDaysLast30, medOveruse, cycleInsight, mostLogged,
 } from './insights.js';
 import { gardenScene, flower, speciesFor } from './garden.js';
 import { barChart, compareBars, rankList } from './charts.js';
 import { download, toCsv } from './export.js';
+import { t, LOCALE } from './i18n.js';
 import * as reminders from './reminders.js';
 
 let state = load();
@@ -22,11 +26,15 @@ const ui = {
   showLibrary: false,
 };
 
+const lang = () => state.settings.lang;
+const T = (key, vars) => t(lang(), key, vars);
+const locale = () => LOCALE[lang()] || 'en';
+
 // Applies the chosen theme before first paint, and again whenever it changes.
 function applyTheme() {
-  const t = state.settings.theme;
-  document.documentElement.dataset.theme = t === 'auto' ? '' : t;
-  const dark = t === 'dark' || (t === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
+  const th = state.settings.theme;
+  document.documentElement.dataset.theme = th === 'auto' ? '' : th;
+  const dark = th === 'dark' || (th === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
   document.querySelector('meta[name="theme-color"]')?.setAttribute('content', dark ? '#1E1B19' : '#FAF5EE');
 }
 applyTheme();
@@ -40,6 +48,8 @@ const $tip = document.getElementById('tip');
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // ---------- labels ----------
+// Every data.js list holds { en, nl } labels; this map resolves an id to the
+// current language's text. Custom (user-typed) triggers are plain strings.
 const LABELS = new Map();
 for (const g of TRIGGER_GROUPS) for (const [id, label] of g.items) LABELS.set(id, label);
 for (const list of [PERIOD_LEVELS, HEADACHE_TYPES, DURATIONS, ONSET, LOCATIONS, HEADACHE_SYMPTOMS, IMPACT, RELIEF, MENO_SYMPTOMS]) {
@@ -47,21 +57,31 @@ for (const list of [PERIOD_LEVELS, HEADACHE_TYPES, DURATIONS, ONSET, LOCATIONS, 
 }
 function labelOf(id) {
   if (!id) return '';
-  const custom = state.settings.customTriggers.find((t) => t.id === id);
-  return custom ? custom.label : LABELS.get(id) || id;
+  const custom = state.settings.customTriggers.find((c) => c.id === id);
+  if (custom) return custom.label;
+  const entry = LABELS.get(id);
+  return entry ? (entry[lang()] || entry.en) : id;
 }
-const factorPhrase = (id) => DERIVED_LABELS[id] || `“${labelOf(id)}”`;
+const factorPhrase = (id) => {
+  const d = DERIVED_LABELS[id];
+  return d ? (d[lang()] || d.en) : `“${labelOf(id)}”`;
+};
 
-const niceDate = (str, opts = { weekday: 'long', day: 'numeric', month: 'long' }) => parseDate(str).toLocaleDateString('en', opts);
+const niceDate = (str, opts = { weekday: 'long', day: 'numeric', month: 'long' }) => parseDate(str).toLocaleDateString(locale(), opts);
+// A known Monday, used only to turn a weekday index (0=Mon..6=Sun) into a
+// locale-correct short name; the actual date is irrelevant.
+const weekdayLabel = (index) => new Date(2024, 0, 1 + index).toLocaleDateString(locale(), { weekday: 'short' });
+const monthLabel = (year, month) => new Date(year, month, 1).toLocaleDateString(locale(), { month: 'short' });
+
 function lastBackupText(ts) {
-  if (!ts) return 'You have not saved a backup yet.';
+  if (!ts) return T('lastBackupNever');
   const days = Math.floor((Date.now() - ts) / 86400000);
-  if (days <= 0) return 'Last backup: today.';
-  if (days === 1) return 'Last backup: yesterday.';
-  return `Last backup: ${days} days ago.`;
+  if (days <= 0) return T('lastBackupToday');
+  if (days === 1) return T('lastBackupYesterday');
+  return T('lastBackupDays', { n: days });
 }
 const dayNumber = (str) => Math.round(parseDate(str).getTime() / 86400000);
-const cardFor = (str) => CARDS[dayNumber(str) % CARDS.length];
+const cardFor = (str) => { const c = CARDS[lang()] || CARDS.en; return c[dayNumber(str) % c.length]; };
 
 function commit() {
   save(state);
@@ -75,11 +95,13 @@ function chips(field, options, selected, multi) {
     `<button type="button" class="chip${sel.has(id) ? ' on' : ''}" aria-pressed="${sel.has(id)}"
       data-action="pick" data-field="${field}" data-value="${esc(id)}"${multi ? ' data-multi="1"' : ''}>${esc(label)}</button>`).join('')}</div>`;
 }
+// Like chips(), but for a [id, {en, nl}] option list from data.js.
+const L = (list) => list.map(([id, label]) => [id, label[lang()] || label.en]);
 
 function scale(field, value, low, high) {
   return `<div class="scale">
     <div class="scale-dots">${[1, 2, 3, 4, 5].map((n) =>
-    `<button type="button" class="dot${value === n ? ' on' : ''}" aria-pressed="${value === n}" aria-label="${n} of 5"
+    `<button type="button" class="dot${value === n ? ' on' : ''}" aria-pressed="${value === n}" aria-label="${T('ofFive', { n })}"
         data-action="pick" data-field="${field}" data-value="${n}" data-num="1">${n}</button>`).join('')}</div>
     <div class="scale-ends"><span>${low}</span><span>${high}</span></div>
   </div>`;
@@ -95,194 +117,201 @@ function setPath(obj, path, value) {
 // ---------- views ----------
 function viewOnboarding() {
   const p = state.profile, s = state.settings;
+  const langPicker = `<div class="chips lang-pick">
+    <button class="chip${s.lang === 'en' ? ' on' : ''}" data-action="setting" data-field="settings.lang" data-value="en">English</button>
+    <button class="chip${s.lang === 'nl' ? ' on' : ''}" data-action="setting" data-field="settings.lang" data-value="nl">Nederlands</button>
+  </div>`;
   return `<section class="onboard">
     <div class="brand-mark">${logo()}</div>
-    <h1>Welcome to Clary</h1>
-    <p class="lead">A calm place to track headaches and migraines through perimenopause and menopause, and to discover what sets them off.</p>
+    <p class="eyebrow center">${T('chooseLanguage')}</p>
+    ${langPicker}
+    <h1>${T('welcomeTitle')}</h1>
+    <p class="lead">${T('welcomeLead')}</p>
     <div class="card">
-      <label class="field"><span>What may we call you? <em>(optional)</em></span>
+      <label class="field"><span>${T('nameQuestion')} <em>${T('optional')}</em></span>
         <input type="text" id="ob-name" value="${esc(p.name)}" maxlength="30" autocomplete="given-name"></label>
-      <div class="field"><span>Where are you right now?</span>
-        ${chips('profile.stage', STAGES, p.stage, false).replace(/data-action="pick"/g, 'data-action="setting"')}
+      <div class="field"><span>${T('stageQuestion')}</span>
+        ${chips('profile.stage', L(STAGES), p.stage, false).replace(/data-action="pick"/g, 'data-action="setting"')}
       </div>
-      <div class="field"><span>Do you use hormone therapy (HRT)?</span>
-        ${chips('settings.usesHrt', [['yes', 'Yes'], ['no', 'No']], s.usesHrt ? 'yes' : 'no', false).replace(/data-action="pick"/g, 'data-action="setting"')}
+      <div class="field"><span>${T('hrtQuestion')}</span>
+        ${chips('settings.usesHrt', [['yes', T('yes')], ['no', T('no')]], s.usesHrt ? 'yes' : 'no', false).replace(/data-action="pick"/g, 'data-action="setting"')}
       </div>
-      <label class="field"><span>When would a daily check-in suit you?</span>
+      <label class="field"><span>${T('reminderTimeQuestion')}</span>
         <input type="time" id="ob-time" value="${esc(s.reminderTime)}"></label>
     </div>
-    <p class="fine">Everything you record stays on this device. No account, no cloud. Clary supports conversations with your doctor and does not replace medical advice.</p>
-    <button class="btn primary big" data-action="finish-onboarding">Start my garden</button>
+    <p class="fine">${T('onboardFine')}</p>
+    <button class="btn primary big" data-action="finish-onboarding">${T('startMyGarden')}</button>
   </section>`;
 }
 
 function greeting() {
   const h = new Date().getHours();
-  const part = h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+  const part = T(h < 12 ? 'goodMorning' : h < 18 ? 'goodAfternoon' : 'goodEvening');
   return state.profile.name ? `${part}, ${esc(state.profile.name)}` : part;
 }
 
-function entrySummary(e) {
+function summaryLine(e) {
   const bits = [];
-  if (e.headache.had) bits.push(`Headache, intensity ${e.headache.intensity}/10${e.headache.type ? ` (${labelOf(e.headache.type).toLowerCase()})` : ''}`);
-  else bits.push('No headache');
-  if (e.period !== 'none') bits.push(`Period: ${labelOf(e.period).toLowerCase()}`);
-  if (e.stress) bits.push(`Stress ${e.stress}/5`);
-  if (e.sleep) bits.push(`Sleep ${e.sleep}/5`);
+  if (e.headache.had) {
+    const kind = e.headache.type ? ` (${labelOf(e.headache.type).toLowerCase()})` : '';
+    bits.push(`${T('headacheIntensity')} ${e.headache.intensity}/10${kind}`);
+  } else {
+    bits.push(T('noHeadache'));
+  }
+  if (e.period !== 'none') bits.push(`${T('period')}: ${labelOf(e.period).toLowerCase()}`);
+  if (e.stress) bits.push(`${T('stress')} ${e.stress}/5`);
+  if (e.sleep) bits.push(`${T('lastNightSleep')} ${e.sleep}/5`);
   return bits.map(esc).join(' · ');
 }
 
 // A short sentence plus a track spanning the earliest-to-latest estimate, with
 // today marked on it. The track's two ends are the whole range, so the band
 // covers it in full; only the "today" marker needs a position.
-function cycleCard(c, t) {
+function cycleCard(c, t0) {
   if (!c) return '';
   const span = Math.max(1, (parseDate(c.latest) - parseDate(c.earliest)) / 86400000);
-  const nowPos = Math.min(100, Math.max(0, Math.round(((parseDate(t) - parseDate(c.earliest)) / 86400000 / span) * 100)));
-  const when = c.daysUntil > 1 ? `in about ${c.daysUntil} days`
-    : c.daysUntil === 1 ? 'tomorrow' : c.daysUntil === 0 ? 'around today'
-      : `${Math.abs(c.daysUntil)} ${Math.abs(c.daysUntil) === 1 ? 'day' : 'days'} ago`;
+  const nowPos = Math.min(100, Math.max(0, Math.round(((parseDate(t0) - parseDate(c.earliest)) / 86400000 / span) * 100)));
+  const when = c.daysUntil > 1 ? T('cycleInAbout', { n: c.daysUntil })
+    : c.daysUntil === 1 ? T('cycleTomorrow') : c.daysUntil === 0 ? T('cycleAroundToday')
+      : c.daysUntil === -1 ? T('cycleDayAgo') : T('cycleDaysAgo', { n: Math.abs(c.daysUntil) });
   return `<div class="card">
-    <p class="eyebrow">Your cycle</p>
-    <p>Based on your last ${c.cycleCount + 1} periods, your next one may start ${when}.</p>
+    <p class="eyebrow">${T('yourCycle')}</p>
+    <p>${T('cycleBasedOn', { n: c.cycleCount + 1, when })}</p>
     <div class="cycle-track"><span class="band" style="left:0;width:100%"></span><span class="now" style="left:${nowPos}%"></span></div>
     <div class="cycle-ends"><span>${niceDate(c.earliest, { day: 'numeric', month: 'short' })}</span><span>${niceDate(c.latest, { day: 'numeric', month: 'short' })}</span></div>
-    ${!c.regular ? '<p class="hint">Your cycles have varied quite a bit lately, so take this as a rough guide rather than a date.</p>' : ''}
+    ${!c.regular ? `<p class="hint">${T('cycleIrregular')}</p>` : ''}
   </div>`;
 }
 
 function viewToday() {
-  const t = today(), y = addDays(t, -1);
-  const done = state.entries[t];
+  const t0 = today(), y = addDays(t0, -1);
+  const done = state.entries[t0];
   const st = streaks(state.entries);
   const pat = findPatterns(state.entries);
-  const medDays = medDaysLast30(state.entries, t);
-  const cycle = state.profile.stage !== 'none' ? cycleInsight(state.entries, t) : null;
+  const medDays = medDaysLast30(state.entries, t0);
+  const cycle = state.profile.stage !== 'none' ? cycleInsight(state.entries, t0) : null;
 
   const hero = done
     ? `<div class="card hero done">
-        <p class="eyebrow">Today’s check-in is done</p>
-        <p class="summary">${entrySummary(done)}</p>
-        <button class="btn ghost" data-action="open-checkin" data-date="${t}">Edit today</button>
+        <p class="eyebrow">${T('checkinDoneEyebrow')}</p>
+        <p class="summary">${summaryLine(done)}</p>
+        <button class="btn ghost" data-action="open-checkin" data-date="${t0}">${T('editToday')}</button>
       </div>
-      <div class="card selfcare"><p class="eyebrow">Today’s card</p><p class="quote">${esc(cardFor(t))}</p></div>`
+      <div class="card selfcare"><p class="eyebrow">${T('todaysCard')}</p><p class="quote">${esc(cardFor(t0))}</p></div>`
     : `<div class="card hero">
-        <p class="eyebrow">${niceDate(t)}</p>
-        <h2>How are you feeling today?</h2>
-        <p>Thirty seconds, a few taps, and a new flower for your garden.</p>
-        <button class="btn primary big" data-action="open-checkin" data-date="${t}">Start check-in</button>
+        <p class="eyebrow">${niceDate(t0)}</p>
+        <h2>${T('howFeelingToday')}</h2>
+        <p>${T('checkinPitch')}</p>
+        <button class="btn primary big" data-action="open-checkin" data-date="${t0}">${T('startCheckin')}</button>
       </div>`;
 
   const catchUp = !state.entries[y] && st.total > 0
-    ? `<button class="link-row" data-action="open-checkin" data-date="${y}"><span>Missed yesterday? Fill it in now</span><span aria-hidden="true">›</span></button>`
+    ? `<button class="link-row" data-action="open-checkin" data-date="${y}"><span>${T('missedYesterday')}</span><span aria-hidden="true">›</span></button>`
     : '';
 
   const backupNote = backupDue(state)
     ? `<div class="card backup-nudge">
-        <p class="eyebrow">Keep your data safe</p>
-        <p>${state.lastBackupAt ? 'It has been a few weeks since your last backup.' : 'You have not saved a backup yet.'}
-          Everything here lives only on this device, so it is worth saving one now and then.</p>
+        <p class="eyebrow">${T('backupKeepSafe')}</p>
+        <p>${T(state.lastBackupAt ? 'backupFewWeeks' : 'backupNever')} ${T('backupExplain')}</p>
         <div class="btn-row">
-          <button class="btn primary" data-action="backup">Save backup now</button>
-          <button class="btn ghost" data-action="snooze-backup">Remind me later</button>
+          <button class="btn primary" data-action="backup">${T('saveBackupNow')}</button>
+          <button class="btn ghost" data-action="snooze-backup">${T('remindLater')}</button>
         </div>
       </div>`
     : '';
 
   let insight = '';
   if (!pat.ready) {
-    insight = `<div class="card"><p class="eyebrow">Your patterns</p>
-      <p>Clary starts looking for patterns after two weeks of check-ins. ${pat.needed} more to go.</p>
+    insight = `<div class="card"><p class="eyebrow">${T('yourPatterns')}</p>
+      <p>${T('patternsNeedTime', { n: pat.needed })}</p>
       <div class="progress"><span style="width:${Math.round(((14 - pat.needed) / 14) * 100)}%"></span></div></div>`;
   } else if (pat.risks.length) {
     const p = pat.risks[0];
-    insight = `<div class="card"><p class="eyebrow">A pattern Clary noticed</p>
-      <p>${esc(describePattern(p, factorPhrase(p.id)))}</p>
-      <button class="btn ghost" data-action="go" data-view="insights">See all insights</button></div>`;
+    insight = `<div class="card"><p class="eyebrow">${T('patternNoticed')}</p>
+      <p>${esc(describePattern(p, factorPhrase(p.id), lang()))}</p>
+      <button class="btn ghost" data-action="go" data-view="insights">${T('seeAllInsights')}</button></div>`;
   }
 
   const medNote = medDays >= 10
-    ? `<div class="card note"><p class="eyebrow">Worth mentioning to your doctor</p>
-        <p>You took pain relief on ${medDays} of the last 30 days. Frequent use can itself lead to more headaches, so it is good to discuss.</p></div>`
+    ? `<div class="card note"><p class="eyebrow">${T('worthMentioning')}</p>
+        <p>${T('painRelief30', { n: medDays })}</p></div>`
     : '';
 
   return `<header class="top"><h1>${greeting()}</h1></header>
     ${hero}${catchUp}${backupNote}
-    <button class="card garden-peek" data-action="go" data-view="garden" aria-label="Open your garden">
+    <button class="card garden-peek" data-action="go" data-view="garden" aria-label="${T('openYourGarden')}">
       ${gardenScene(st.total)}
-      <div class="peek-stats"><span><strong>${st.total}</strong> ${st.total === 1 ? 'bloom' : 'blooms'}</span><span><strong>${st.current}</strong> day streak</span></div>
+      <div class="peek-stats"><span><strong>${st.total}</strong> ${T(st.total === 1 ? 'bloomSingular' : 'bloomPlural')}</span><span><strong>${st.current}</strong> ${T('dayStreak')}</span></div>
     </button>
-    ${cycleCard(cycle, t)}
+    ${cycleCard(cycle, t0)}
     ${insight}${medNote}`;
 }
 
 function viewCheckin() {
   const d = ui.draft, date = ui.draftDate, isToday = date === today();
   const s = state.settings;
-  const tracked = [
-    ...s.trackedTriggers.map((id) => [id, labelOf(id)]),
-  ];
+  const tracked = s.trackedTriggers.map((id) => [id, labelOf(id)]);
   const h = d.headache;
 
   const headacheQuick = h.had ? `
     <div class="sub">
-      <label class="field"><span>How strong was it at its worst? <output id="intensity-out">${h.intensity}</output>/10</span>
-        <input type="range" min="1" max="10" step="1" value="${h.intensity}" data-field="headache.intensity" data-num="1" aria-label="Intensity from 1 to 10">
-        <div class="scale-ends"><span>Mild</span><span>Unbearable</span></div></label>
-      <div class="field"><span>What kind?</span>${chips('headache.type', HEADACHE_TYPES, h.type, false)}</div>
+      <label class="field"><span>${T('howStrongWorst')} <output id="intensity-out">${h.intensity}</output>/10</span>
+        <input type="range" min="1" max="10" step="1" value="${h.intensity}" data-field="headache.intensity" data-num="1" aria-label="${T('intensityAria')}">
+        <div class="scale-ends"><span>${T('mild')}</span><span>${T('unbearable')}</span></div></label>
+      <div class="field"><span>${T('whatKind')}</span>${chips('headache.type', L(HEADACHE_TYPES), h.type, false)}</div>
     </div>` : '';
 
   const headacheMore = h.had ? `
-    <div class="field"><span>How did it start?</span>${chips('headache.onset', ONSET, h.onset, false)}</div>
-    <div class="field"><span>How long did it last?</span>${chips('headache.duration', DURATIONS, h.duration, false)}</div>
-    <div class="field"><span>Where did you feel it?</span>${chips('headache.locations', LOCATIONS, h.locations, true)}</div>
-    <div class="field"><span>What came with it?</span>${chips('headache.symptoms', HEADACHE_SYMPTOMS, h.symptoms, true)}</div>
-    <div class="field"><span>How much did it affect your day?</span>${chips('headache.impact', IMPACT, h.impact, false)}</div>
-    <div class="field"><span>Did you take anything?</span>${chips('headache.meds', s.meds.map((m) => [m, m]), h.meds, true)}</div>
-    ${h.meds.length ? `<div class="field"><span>Did it help?</span>${chips('headache.relief', RELIEF, h.relief, false)}</div>` : ''}` : '';
+    <div class="field"><span>${T('howDidItStart')}</span>${chips('headache.onset', L(ONSET), h.onset, false)}</div>
+    <div class="field"><span>${T('howLongDidItLast')}</span>${chips('headache.duration', L(DURATIONS), h.duration, false)}</div>
+    <div class="field"><span>${T('whereDidYouFeelIt')}</span>${chips('headache.locations', L(LOCATIONS), h.locations, true)}</div>
+    <div class="field"><span>${T('whatCameWithIt')}</span>${chips('headache.symptoms', L(HEADACHE_SYMPTOMS), h.symptoms, true)}</div>
+    <div class="field"><span>${T('howMuchAffect')}</span>${chips('headache.impact', L(IMPACT), h.impact, false)}</div>
+    <div class="field"><span>${T('didYouTakeAnything')}</span>${chips('headache.meds', s.meds.map((m) => [m, m]), h.meds, true)}</div>
+    ${h.meds.length ? `<div class="field"><span>${T('didItHelp')}</span>${chips('headache.relief', L(RELIEF), h.relief, false)}</div>` : ''}` : '';
 
   const more = ui.showMore ? `
     <div class="card">
-      <h3>More detail</h3>
+      <h3>${T('moreDetail')}</h3>
       ${headacheMore}
-      ${s.trackMeno ? `<div class="field"><span>Menopause symptoms</span>${chips('meno', MENO_SYMPTOMS, d.meno, true)}</div>` : ''}
-      ${s.usesHrt ? `<div class="field"><span>Did you take your HRT?</span>${chips('hrt', [['yes', 'Yes'], ['no', 'No']], d.hrt ? 'yes' : 'no', false)}</div>` : ''}
-      <label class="field"><span>Hours of sleep</span>
-        <input type="number" inputmode="decimal" min="0" max="16" step="0.5" value="${esc(d.sleepHours)}" data-field="sleepHours" placeholder="e.g. 7"></label>
-      <div class="field"><span>Mood</span>${scale('mood', d.mood, 'Low', 'Bright')}</div>
-      <label class="field"><span>Notes</span>
-        <textarea rows="3" data-field="notes" maxlength="1000" placeholder="Anything else worth remembering">${esc(d.notes)}</textarea></label>
+      ${s.trackMeno ? `<div class="field"><span>${T('menopauseSymptoms')}</span>${chips('meno', L(MENO_SYMPTOMS), d.meno, true)}</div>` : ''}
+      ${s.usesHrt ? `<div class="field"><span>${T('didYouTakeHrt')}</span>${chips('hrt', [['yes', T('yes')], ['no', T('no')]], d.hrt ? 'yes' : 'no', false)}</div>` : ''}
+      <label class="field"><span>${T('hoursOfSleep')}</span>
+        <input type="number" inputmode="decimal" min="0" max="16" step="0.5" value="${esc(d.sleepHours)}" data-field="sleepHours" placeholder="${T('egSeven')}"></label>
+      <div class="field"><span>${T('mood')}</span>${scale('mood', d.mood, T('low'), T('bright'))}</div>
+      <label class="field"><span>${T('notes')}</span>
+        <textarea rows="3" data-field="notes" maxlength="1000" placeholder="${T('notesPlaceholder')}">${esc(d.notes)}</textarea></label>
     </div>` : '';
 
   const quickActions = ui.draftIsNew && state.entries[addDays(date, -1)]
-    ? `<button class="link-row" data-action="copy-yesterday"><span>Copy yesterday’s check-in</span><span aria-hidden="true">›</span></button>`
+    ? `<button class="link-row" data-action="copy-yesterday"><span>${T('copyYesterday')}</span><span aria-hidden="true">›</span></button>`
     : !ui.draftIsNew
-      ? `<button class="link-row danger" data-action="delete-checkin" data-date="${date}"><span>Clear this day’s check-in</span><span aria-hidden="true">×</span></button>`
+      ? `<button class="link-row danger" data-action="delete-checkin" data-date="${date}"><span>${T('clearDay')}</span><span aria-hidden="true">×</span></button>`
       : '';
 
   return `<header class="top with-back">
-      <button class="icon-btn" data-action="close-checkin" aria-label="Back">‹</button>
-      <div><p class="eyebrow">${isToday ? 'Today' : 'Looking back'}</p><h1>${niceDate(date)}</h1></div>
+      <button class="icon-btn" data-action="close-checkin" aria-label="${T('back')}">‹</button>
+      <div><p class="eyebrow">${T(isToday ? 'today' : 'lookingBack')}</p><h1>${niceDate(date)}</h1></div>
     </header>
     ${quickActions}
     <div class="card">
-      <h3>${isToday ? 'Any headache today?' : 'Any headache that day?'}</h3>
-      ${chips('headache.had', [['no', 'No headache'], ['yes', 'Yes']], h.had ? 'yes' : 'no', false)}
+      <h3>${T(isToday ? 'anyHeadacheToday' : 'anyHeadacheThatDay')}</h3>
+      ${chips('headache.had', [['no', T('noHeadache')], ['yes', T('yes')]], h.had ? 'yes' : 'no', false)}
       ${headacheQuick}
     </div>
-    ${state.profile.stage !== 'none' ? `<div class="card"><h3>Period</h3>${chips('period', PERIOD_LEVELS, d.period, false)}</div>` : ''}
+    ${state.profile.stage !== 'none' ? `<div class="card"><h3>${T('period')}</h3>${chips('period', L(PERIOD_LEVELS), d.period, false)}</div>` : ''}
     <div class="card">
-      <h3>Stress</h3>${scale('stress', d.stress, 'Calm', 'Very stressed')}
-      <h3 class="gap">Last night’s sleep</h3>${scale('sleep', d.sleep, 'Poor', 'Great')}
+      <h3>${T('stress')}</h3>${scale('stress', d.stress, T('calm'), T('veryStressed'))}
+      <h3 class="gap">${T('lastNightSleep')}</h3>${scale('sleep', d.sleep, T('poor'), T('great'))}
     </div>
     <div class="card">
-      <h3>Anything from this list?</h3>
-      <p class="hint">Tap what applied. You choose what appears here in Settings.</p>
+      <h3>${T('anythingFromList')}</h3>
+      <p class="hint">${T('tapWhatApplied')}</p>
       ${chips('triggers', tracked, d.triggers, true)}
     </div>
     ${more}
-    <button class="btn ghost wide" data-action="toggle-more">${ui.showMore ? 'Hide extra detail' : 'Add more detail'}</button>
-    <div class="save-bar"><button class="btn primary big" data-action="save-checkin">Save check-in</button></div>`;
+    <button class="btn ghost wide" data-action="toggle-more">${T(ui.showMore ? 'hideExtraDetail' : 'addMoreDetail')}</button>
+    <div class="save-bar"><button class="btn primary big" data-action="save-checkin">${T('saveCheckin')}</button></div>`;
 }
 
 function intensityClass(e) {
@@ -297,41 +326,43 @@ function viewCalendar() {
   const first = new Date(y, m - 1, 1, 12);
   const days = new Date(y, m, 0).getDate();
   const offset = (first.getDay() + 6) % 7;
-  const t = today();
-  const cycle = state.profile.stage !== 'none' ? cycleInsight(state.entries, t) : null;
+  const t0 = today();
+  const cycle = state.profile.stage !== 'none' ? cycleInsight(state.entries, t0) : null;
   let cells = '';
   for (let i = 0; i < offset; i++) cells += '<span class="cal-cell empty"></span>';
   for (let d = 1; d <= days; d++) {
     const str = `${ui.month}-${String(d).padStart(2, '0')}`;
     const e = state.entries[str];
-    const future = str > t;
+    const future = str > t0;
     const period = e && e.period !== 'none';
     const predicted = !e && cycle && str >= cycle.earliest && str <= cycle.latest;
-    const desc = e ? (e.headache.had ? `headache ${e.headache.intensity} of 10` : 'no headache') : 'no check-in';
-    cells += `<button class="cal-cell ${intensityClass(e)}${str === t ? ' today' : ''}${predicted ? ' predicted' : ''}" ${future ? 'disabled' : ''}
-      data-action="open-checkin" data-date="${str}" aria-label="${niceDate(str)}: ${desc}${period ? ', period' : ''}${predicted ? ', period may start around here' : ''}">
+    const desc = e ? (e.headache.had ? T('ariaHeadacheOf10', { n: e.headache.intensity }) : T('legendNoHeadache')) : T('ariaNoCheckin');
+    const aria = `${niceDate(str)}: ${desc}${period ? T('ariaPeriodSuffix') : ''}${predicted ? T('ariaPredictedSuffix') : ''}`;
+    cells += `<button class="cal-cell ${intensityClass(e)}${str === t0 ? ' today' : ''}${predicted ? ' predicted' : ''}" ${future ? 'disabled' : ''}
+      data-action="open-checkin" data-date="${str}" aria-label="${esc(aria)}">
       <span class="num">${d}</span>${period ? '<span class="drop" aria-hidden="true"></span>' : ''}</button>`;
   }
   const s = summarize(state.entries, `${ui.month}-01`, `${ui.month}-31`);
-  return `<header class="top"><h1>Calendar</h1></header>
+  const weekdayNames = [0, 1, 2, 3, 4, 5, 6].map((i) => weekdayLabel(i)[0].toUpperCase());
+  return `<header class="top"><h1>${T('calendar')}</h1></header>
     <div class="card">
       <div class="cal-head">
-        <button class="icon-btn" data-action="month" data-step="-1" aria-label="Previous month">‹</button>
-        <h2>${first.toLocaleDateString('en', { month: 'long', year: 'numeric' })}</h2>
-        <button class="icon-btn" data-action="month" data-step="1" aria-label="Next month" ${ui.month >= t.slice(0, 7) ? 'disabled' : ''}>›</button>
+        <button class="icon-btn" data-action="month" data-step="-1" aria-label="${T('previousMonth')}">‹</button>
+        <h2>${first.toLocaleDateString(locale(), { month: 'long', year: 'numeric' })}</h2>
+        <button class="icon-btn" data-action="month" data-step="1" aria-label="${T('nextMonth')}" ${ui.month >= t0.slice(0, 7) ? 'disabled' : ''}>›</button>
       </div>
-      <div class="cal-grid names">${['M', 'T', 'W', 'T', 'F', 'S', 'S'].map((n) => `<span>${n}</span>`).join('')}</div>
+      <div class="cal-grid names">${weekdayNames.map((n) => `<span>${n}</span>`).join('')}</div>
       <div class="cal-grid">${cells}</div>
       <div class="legend">
-        <span><i class="sw clear"></i>No headache</span><span><i class="sw h1"></i>Mild</span>
-        <span><i class="sw h2"></i>Moderate</span><span><i class="sw h3"></i>Severe</span>
-        <span><i class="drop"></i>Period</span>${cycle ? '<span><i class="sw predicted-sw"></i>Period may start</span>' : ''}
+        <span><i class="sw clear"></i>${T('legendNoHeadache')}</span><span><i class="sw h1"></i>${T('legendMild')}</span>
+        <span><i class="sw h2"></i>${T('legendModerate')}</span><span><i class="sw h3"></i>${T('legendSevere')}</span>
+        <span><i class="drop"></i>${T('legendPeriod')}</span>${cycle ? `<span><i class="sw predicted-sw"></i>${T('legendPredicted')}</span>` : ''}
       </div>
     </div>
     <div class="tiles">
-      ${tile(s.logged, 'check-ins')}${tile(s.headacheDays, 'headache days')}${tile(s.periodDays, 'period days')}
+      ${tile(s.logged, T('checkins'))}${tile(s.headacheDays, T('headacheDays'))}${tile(s.periodDays, T('periodDays'))}
     </div>
-    <p class="hint center">Tap any day to add or change its check-in.</p>`;
+    <p class="hint center">${T('tapAnyDay')}</p>`;
 }
 
 const tile = (value, label) => `<div class="tile"><strong>${value}</strong><span>${label}</span></div>`;
@@ -345,9 +376,9 @@ function rangeBounds() {
 
 function patternCard(p) {
   return `<div class="pattern">
-    <p>${esc(describePattern(p, factorPhrase(p.id)))}</p>
-    ${compareBars(p.withRate, p.withoutRate)}
-    <p class="meta">${p.strong ? 'Consistent pattern' : 'Early signal'} · based on ${p.days} days</p>
+    <p>${esc(describePattern(p, factorPhrase(p.id), lang()))}</p>
+    ${compareBars(p.withRate, p.withoutRate, T('withLabel'), T('withoutLabel'))}
+    <p class="meta">${T(p.strong ? 'consistentPattern' : 'earlySignal')} · ${T('basedOnDays', { n: p.days })}</p>
   </div>`;
 }
 
@@ -357,59 +388,65 @@ function viewInsights() {
   const pat = findPatterns(state.entries);
   const months = monthly(state.entries, ui.range === 30 ? 3 : ui.range === 90 ? 6 : 12, to);
   const week = byWeekday(state.entries, from, to);
-  const ranges = [[30, '30 days'], [90, '3 months'], [365, '1 year'], [0, 'All time']];
+  const ranges = [[30, T('range30')], [90, T('range90')], [365, T('range365')], [0, T('rangeAll')]];
   const cycle = state.profile.stage !== 'none' ? cycleInsight(state.entries, to) : null;
   const logged = mostLogged(state.entries, from, to);
   const mo = medOveruse(state.entries, to);
 
   const patterns = !pat.ready
-    ? `<p>Clary needs about two weeks of check-ins before it can compare days fairly. ${pat.needed} more to go.</p>`
+    ? `<p>${T('patternsNeedTimeFull', { n: pat.needed })}</p>`
     : pat.risks.length
       ? pat.risks.slice(0, 8).map(patternCard).join('')
-      : '<p>No clear triggers yet. That is useful to know too. Keep checking in and Clary will keep looking.</p>';
+      : `<p>${T('noClearTriggers')}</p>`;
 
   const helpers = pat.ready && pat.helpers.length
-    ? `<div class="card"><h2>What seems to go with fewer headaches</h2>${pat.helpers.slice(0, 4).map(patternCard).join('')}</div>`
+    ? `<div class="card"><h2>${T('fewerHeadaches')}</h2>${pat.helpers.slice(0, 4).map(patternCard).join('')}</div>`
     : '';
 
   const mostLoggedCard = logged.items.length
-    ? `<div class="card"><h2>Most logged</h2>
-        <p class="hint">What you have tagged most often in this period, regardless of whether a headache followed.</p>
+    ? `<div class="card"><h2>${T('mostLogged')}</h2>
+        <p class="hint">${T('mostLoggedExplain')}</p>
         ${rankList(logged.items.map((i) => ({ label: esc(labelOf(i.id)), value: i.count })))}
       </div>`
     : '';
 
   const medNote = mo.flag
-    ? `<div class="card note"><p class="eyebrow">Worth mentioning to your doctor</p>
-        <p>Over the last three months you have needed pain relief on about ${mo.perMonth.toFixed(1)} days a month on average. Frequent use can itself lead to more headaches.</p></div>`
+    ? `<div class="card note"><p class="eyebrow">${T('worthMentioning')}</p>
+        <p>${T('medNote3mo', { n: mo.perMonth.toFixed(1) })}</p></div>`
     : '';
 
-  return `<header class="top"><h1>Insights</h1></header>
-    <div class="chips range" role="group" aria-label="Period">${ranges.map(([n, l]) =>
+  return `<header class="top"><h1>${T('insights')}</h1></header>
+    <div class="chips range" role="group" aria-label="${T('rangeAria')}">${ranges.map(([n, l]) =>
     `<button class="chip${ui.range === n ? ' on' : ''}" aria-pressed="${ui.range === n}" data-action="range" data-value="${n}">${l}</button>`).join('')}</div>
     <div class="tiles four">
-      ${tile(s.headacheDays, 'headache days')}${tile(s.migraineDays, 'migraine days')}
-      ${tile(s.headacheDays ? s.avgIntensity.toFixed(1) : '–', 'average intensity')}${tile(s.medDays, 'days with pain relief')}
+      ${tile(s.headacheDays, T('headacheDays'))}${tile(s.migraineDays, T('migraineDays'))}
+      ${tile(s.headacheDays ? s.avgIntensity.toFixed(1) : '–', T('averageIntensity'))}${tile(s.medDays, T('daysWithPainRelief'))}
     </div>
     ${medNote}
     ${cycleCard(cycle, to)}
-    <div class="card"><h2>Headache days per month</h2>
-      ${barChart(months.map((x) => ({ label: x.label, value: x.headacheDays, tip: `${x.label} ${x.year}: ${x.headacheDays} headache days out of ${x.logged} check-ins` })), { ariaLabel: 'Headache days per month' })}
+    <div class="card"><h2>${T('headacheDaysPerMonth')}</h2>
+      ${barChart(months.map((x) => {
+    const label = monthLabel(x.year, x.month);
+    return { label, value: x.headacheDays, tip: T('tooltipMonth', { label, year: x.year, days: x.headacheDays, logged: x.logged }) };
+  }), { ariaLabel: T('headacheDaysPerMonth') })}
     </div>
-    <div class="card"><h2>Headache days by weekday</h2>
-      ${barChart(week.map((x) => ({ label: x.label, value: x.headacheDays, tip: `${x.label}: ${x.headacheDays} headache days out of ${x.logged} check-ins` })), { ariaLabel: 'Headache days by weekday' })}
+    <div class="card"><h2>${T('headacheDaysByWeekday')}</h2>
+      ${barChart(week.map((x) => {
+    const label = weekdayLabel(x.index);
+    return { label, value: x.headacheDays, tip: T('tooltipWeekday', { label, days: x.headacheDays, logged: x.logged }) };
+  }), { ariaLabel: T('headacheDaysByWeekday') })}
     </div>
-    <div class="card"><h2>Your possible triggers</h2>
-      <p class="hint">Clary compares days with and without each factor, on the same day and up to two days later. These are patterns to explore, not proof of a cause.</p>
+    <div class="card"><h2>${T('yourPossibleTriggers')}</h2>
+      <p class="hint">${T('patternsExplain')}</p>
       ${patterns}
     </div>
     ${helpers}
     ${mostLoggedCard}
-    <div class="card"><h2>Take it with you</h2>
-      <p class="hint">A report for your doctor, or the raw data for a spreadsheet.</p>
+    <div class="card"><h2>${T('takeItWithYou')}</h2>
+      <p class="hint">${T('reportOrSpreadsheet')}</p>
       <div class="btn-row">
-        <button class="btn primary" data-action="go" data-view="report">Doctor report (PDF)</button>
-        <button class="btn ghost" data-action="export-csv">Download CSV</button>
+        <button class="btn primary" data-action="go" data-view="report">${T('doctorReportPdf')}</button>
+        <button class="btn ghost" data-action="export-csv">${T('downloadCsv')}</button>
       </div>
     </div>`;
 }
@@ -426,31 +463,31 @@ function viewReport() {
       <td>${e.period !== 'none' ? esc(labelOf(e.period)) : ''}</td><td>${esc(e.triggers.map(labelOf).join(', '))}</td></tr>`;
   }).join('');
   return `<header class="top with-back no-print">
-      <button class="icon-btn" data-action="go" data-view="insights" aria-label="Back">‹</button>
-      <h1>Doctor report</h1>
+      <button class="icon-btn" data-action="go" data-view="insights" aria-label="${T('back')}">‹</button>
+      <h1>${T('doctorReport')}</h1>
     </header>
-    <div class="btn-row no-print"><button class="btn primary" data-action="print">Print or save as PDF</button></div>
+    <div class="btn-row no-print"><button class="btn primary" data-action="print">${T('printOrSave')}</button></div>
     <article class="report card">
-      <h2>Headache report${state.profile.name ? ` for ${esc(state.profile.name)}` : ''}</h2>
-      <p>${niceDate(from, { day: 'numeric', month: 'long', year: 'numeric' })} to ${niceDate(to, { day: 'numeric', month: 'long', year: 'numeric' })} · ${s.logged} days recorded</p>
+      <h2>${state.profile.name ? T('headacheReportFor', { name: esc(state.profile.name) }) : T('headacheReport')}</h2>
+      <p>${niceDate(from, { day: 'numeric', month: 'long', year: 'numeric' })} ${T('toDate')} ${niceDate(to, { day: 'numeric', month: 'long', year: 'numeric' })} · ${T('daysRecorded', { n: s.logged })}</p>
       <table class="kv">
-        <tr><th>Headache days</th><td>${s.headacheDays}</td></tr>
-        <tr><th>Of which migraine</th><td>${s.migraineDays}</td></tr>
-        <tr><th>Average intensity</th><td>${s.headacheDays ? `${s.avgIntensity.toFixed(1)} / 10` : '–'}</td></tr>
-        <tr><th>Days with pain relief</th><td>${s.medDays}</td></tr>
-        <tr><th>Days needing rest</th><td>${s.restDays}</td></tr>
-        <tr><th>Period days</th><td>${s.periodDays}</td></tr>
+        <tr><th>${T('kvHeadacheDays')}</th><td>${s.headacheDays}</td></tr>
+        <tr><th>${T('kvMigraine')}</th><td>${s.migraineDays}</td></tr>
+        <tr><th>${T('kvAvgIntensity')}</th><td>${s.headacheDays ? `${s.avgIntensity.toFixed(1)} / 10` : '–'}</td></tr>
+        <tr><th>${T('kvPainRelief')}</th><td>${s.medDays}</td></tr>
+        <tr><th>${T('kvRest')}</th><td>${s.restDays}</td></tr>
+        <tr><th>${T('kvPeriodDays')}</th><td>${s.periodDays}</td></tr>
       </table>
-      <h3>Per month</h3>
-      <table><tr><th>Month</th><th>Days recorded</th><th>Headache days</th></tr>
-        ${months.map((m) => `<tr><td>${m.label} ${m.year}</td><td>${m.logged}</td><td>${m.headacheDays}</td></tr>`).join('')}</table>
-      <h3>Observed patterns (all recorded data)</h3>
+      <h3>${T('perMonth')}</h3>
+      <table><tr><th>${T('colMonth')}</th><th>${T('colDaysRecorded')}</th><th>${T('colHeadacheDays')}</th></tr>
+        ${months.map((m) => `<tr><td>${monthLabel(m.year, m.month)} ${m.year}</td><td>${m.logged}</td><td>${m.headacheDays}</td></tr>`).join('')}</table>
+      <h3>${T('observedPatterns')}</h3>
       ${pat.ready && pat.risks.length
-    ? `<ul>${pat.risks.slice(0, 8).map((p) => `<li>${esc(describePattern(p, factorPhrase(p.id)))} (${p.days} days)</li>`).join('')}</ul>`
-    : '<p>No clear patterns yet.</p>'}
-      <h3>Headache log</h3>
-      ${rows ? `<table class="log"><tr><th>Date</th><th>Intensity</th><th>Type</th><th>Onset</th><th>Duration</th><th>Symptoms</th><th>Medication</th><th>Period</th><th>Logged factors</th></tr>${rows}</table>` : '<p>No headaches recorded in this period.</p>'}
-      <p class="fine">Self-reported with Clary. Patterns are statistical associations, not diagnoses.</p>
+    ? `<ul>${pat.risks.slice(0, 8).map((p) => `<li>${esc(describePattern(p, factorPhrase(p.id), lang()))} ${T('daysSuffix', { n: p.days })}</li>`).join('')}</ul>`
+    : `<p>${T('noClearPatterns')}</p>`}
+      <h3>${T('headacheLog')}</h3>
+      ${rows ? `<table class="log"><tr><th>${T('colDate')}</th><th>${T('colIntensity')}</th><th>${T('colType')}</th><th>${T('colOnset')}</th><th>${T('colDuration')}</th><th>${T('colSymptoms')}</th><th>${T('colMedication')}</th><th>${T('colPeriod')}</th><th>${T('colLoggedFactors')}</th></tr>${rows}</table>` : `<p>${T('noHeadachesRecorded')}</p>`}
+      <p class="fine">${T('reportDisclaimer')}</p>
     </article>`;
 }
 
@@ -458,86 +495,92 @@ function viewGarden() {
   const st = streaks(state.entries);
   const next = MILESTONES.find((m) => m.at > st.total);
   const earned = MILESTONES.filter((m) => m.at <= st.total).reverse();
-  return `<header class="top"><h1>Your garden</h1></header>
+  return `<header class="top"><h1>${T('yourGarden')}</h1></header>
     <div class="card flush">${gardenScene(st.total)}</div>
-    <div class="tiles">${tile(st.total, st.total === 1 ? 'bloom' : 'blooms')}${tile(st.current, 'day streak')}${tile(st.best, 'longest streak')}</div>
-    <p class="hint center">Every check-in grows a flower, on good days and hard days alike. Your garden never wilts.</p>
-    ${next ? `<div class="card"><p class="eyebrow">Next milestone</p><h2>${esc(next.title)}</h2>
-      <p>${next.at - st.total} more ${next.at - st.total === 1 ? 'check-in' : 'check-ins'} to go.</p>
+    <div class="tiles">${tile(st.total, T(st.total === 1 ? 'bloomSingular' : 'bloomPlural'))}${tile(st.current, T('dayStreak'))}${tile(st.best, T('longestStreak'))}</div>
+    <p class="hint center">${T('gardenNeverWilts')}</p>
+    ${next ? `<div class="card"><p class="eyebrow">${T('nextMilestone')}</p><h2>${esc(next.title[lang()] || next.title.en)}</h2>
+      <p>${T(next.at - st.total === 1 ? 'checkinsToGoSingular' : 'checkinsToGoPlural', { n: next.at - st.total })}</p>
       <div class="progress"><span style="width:${Math.round((st.total / next.at) * 100)}%"></span></div></div>` : ''}
-    <div class="card"><h2>Flowers</h2><div class="species">${SPECIES.map((sp, i) => {
+    <div class="card"><h2>${T('flowers')}</h2><div class="species">${SPECIES.map((sp, i) => {
     const open = st.total >= sp.at;
     return `<div class="sp${open ? '' : ' locked'}"><svg viewBox="-14 -50 28 52" aria-hidden="true">${flower(sp.id, i)}</svg>
-        <span>${open ? esc(sp.name) : `at ${sp.at}`}</span></div>`;
+        <span>${open ? esc(sp.name[lang()] || sp.name.en) : T('atCount', { n: sp.at })}</span></div>`;
   }).join('')}</div></div>
-    ${earned.length ? `<div class="card"><h2>Milestones</h2><ul class="milestones">${earned.map((m) =>
-    `<li><strong>${esc(m.title)}</strong><span>${esc(m.text)}</span></li>`).join('')}</ul></div>` : ''}
-    <div class="card selfcare"><p class="eyebrow">Today’s card</p><p class="quote">${esc(cardFor(today()))}</p></div>`;
+    ${earned.length ? `<div class="card"><h2>${T('milestones')}</h2><ul class="milestones">${earned.map((m) =>
+    `<li><strong>${esc(m.title[lang()] || m.title.en)}</strong><span>${esc(m.text[lang()] || m.text.en)}</span></li>`).join('')}</ul></div>` : ''}
+    <div class="card selfcare"><p class="eyebrow">${T('todaysCard')}</p><p class="quote">${esc(cardFor(today()))}</p></div>`;
 }
 
 function viewSettings() {
   const s = state.settings, p = state.profile;
   const perm = reminders.permission();
-  const permText = perm === 'granted' ? 'Notifications are allowed on this device.'
-    : perm === 'denied' ? 'Notifications are blocked. Allow them for this site in your browser settings.'
-      : perm === 'unsupported' ? 'This browser does not support notifications. On iPhone, add Clary to your Home Screen first.'
-        : 'Turn reminders on to allow notifications.';
+  const permText = perm === 'granted' ? T('permGranted')
+    : perm === 'denied' ? T('permDenied')
+      : perm === 'unsupported' ? T('permUnsupported')
+        : T('permDefault');
   const toSetting = (html) => html.replace(/data-action="pick"/g, 'data-action="setting"');
 
   const library = ui.showLibrary ? TRIGGER_GROUPS.map((g) => `
-      <div class="field"><span>${g.label}</span>
-        ${toSetting(chips('settings.trackedTriggers', g.items, s.trackedTriggers, true))}</div>`).join('') : '';
+      <div class="field"><span>${g.label[lang()] || g.label.en}</span>
+        ${toSetting(chips('settings.trackedTriggers', L(g.items), s.trackedTriggers, true))}</div>`).join('') : '';
 
-  return `<header class="top"><h1>Settings</h1></header>
-    <div class="card"><h2>Appearance</h2>
-      <div class="field"><span>Theme</span>${toSetting(chips('settings.theme',
-    [['auto', 'Match device'], ['light', 'Light'], ['dark', 'Dark']], s.theme, false))}</div>
+  return `<header class="top"><h1>${T('settings')}</h1></header>
+    <div class="card"><h2>${T('appearance')}</h2>
+      <div class="field"><span>${T('language')}</span>
+        <div class="chips">
+          <button class="chip${s.lang === 'en' ? ' on' : ''}" data-action="setting" data-field="settings.lang" data-value="en">English</button>
+          <button class="chip${s.lang === 'nl' ? ' on' : ''}" data-action="setting" data-field="settings.lang" data-value="nl">Nederlands</button>
+        </div>
+      </div>
+      <div class="field"><span>${T('theme')}</span>${toSetting(chips('settings.theme',
+    [['auto', T('matchDevice')], ['light', T('light')], ['dark', T('dark')]], s.theme, false))}</div>
     </div>
-    <div class="card"><h2>About you</h2>
-      <label class="field"><span>Name</span><input type="text" data-setting="profile.name" value="${esc(p.name)}" maxlength="30"></label>
-      <div class="field"><span>Cycle</span>${toSetting(chips('profile.stage', STAGES, p.stage, false))}</div>
-      <div class="field"><span>I use hormone therapy (HRT)</span>${toSetting(chips('settings.usesHrt', [['yes', 'Yes'], ['no', 'No']], s.usesHrt ? 'yes' : 'no', false))}</div>
-      <div class="field"><span>Track menopause symptoms</span>${toSetting(chips('settings.trackMeno', [['yes', 'Yes'], ['no', 'No']], s.trackMeno ? 'yes' : 'no', false))}</div>
+    <div class="card"><h2>${T('aboutYou')}</h2>
+      <label class="field"><span>${T('name')}</span><input type="text" data-setting="profile.name" value="${esc(p.name)}" maxlength="30"></label>
+      <div class="field"><span>${T('cycle')}</span>${toSetting(chips('profile.stage', L(STAGES), p.stage, false))}</div>
+      <div class="field"><span>${T('hrtSetting')}</span>${toSetting(chips('settings.usesHrt', [['yes', T('yes')], ['no', T('no')]], s.usesHrt ? 'yes' : 'no', false))}</div>
+      <div class="field"><span>${T('trackMenoSetting')}</span>${toSetting(chips('settings.trackMeno', [['yes', T('yes')], ['no', T('no')]], s.trackMeno ? 'yes' : 'no', false))}</div>
     </div>
-    <div class="card"><h2>Daily reminder</h2>
-      <div class="field"><span>Remind me every day</span>${toSetting(chips('settings.reminderOn', [['yes', 'On'], ['no', 'Off']], s.reminderOn ? 'yes' : 'no', false))}</div>
-      <label class="field"><span>At</span><input type="time" data-setting="settings.reminderTime" value="${esc(s.reminderTime)}"></label>
+    <div class="card"><h2>${T('dailyReminder')}</h2>
+      <div class="field"><span>${T('remindEveryDay')}</span>${toSetting(chips('settings.reminderOn', [['yes', T('on')], ['no', T('off')]], s.reminderOn ? 'yes' : 'no', false))}</div>
+      <label class="field"><span>${T('at')}</span><input type="time" data-setting="settings.reminderTime" value="${esc(s.reminderTime)}"></label>
       <p class="hint">${permText}</p>
-      <p class="hint">For a reminder that never misses, even when Clary is closed, add a repeating alert to your phone’s calendar.</p>
-      <button class="btn ghost" data-action="calendar-file">Add to my calendar</button>
+      <p class="hint">${T('reminderNeverMisses')}</p>
+      <button class="btn ghost" data-action="calendar-file">${T('addToCalendar')}</button>
     </div>
-    <div class="card"><h2>What I track</h2>
-      <p class="hint">${s.trackedTriggers.length} factors appear in your check-in. Your period, stress and sleep are always included.</p>
-      <button class="btn ghost" data-action="toggle-library">${ui.showLibrary ? 'Hide the full list' : 'Choose from the full list'}</button>
+    <div class="card"><h2>${T('whatITrack')}</h2>
+      <p class="hint">${T('factorsAppear', { n: s.trackedTriggers.length })}</p>
+      <button class="btn ghost" data-action="toggle-library">${T(ui.showLibrary ? 'hideFullList' : 'chooseFullList')}</button>
       ${library}
-      <div class="field"><span>My own triggers</span>
-        <div class="chips">${s.customTriggers.filter((t) => !t.hidden).map((t) =>
-    `<button class="chip on" data-action="remove-custom" data-id="${esc(t.id)}" aria-label="Remove ${esc(t.label)}">${esc(t.label)} ×</button>`).join('') || '<span class="hint">None yet</span>'}</div>
-        <div class="add-row"><input type="text" id="new-trigger" maxlength="40" placeholder="e.g. Bright supermarket lights" aria-label="New trigger">
-          <button class="btn ghost" data-action="add-custom">Add</button></div>
+      <div class="field"><span>${T('myOwnTriggers')}</span>
+        <div class="chips">${s.customTriggers.filter((c) => !c.hidden).map((c) =>
+    `<button class="chip on" data-action="remove-custom" data-id="${esc(c.id)}" aria-label="${T('removeAria', { label: esc(c.label) })}">${esc(c.label)} ×</button>`).join('') || `<span class="hint">${T('noneYet')}</span>`}</div>
+        <div class="add-row"><input type="text" id="new-trigger" maxlength="40" placeholder="${T('newTriggerPlaceholder')}" aria-label="${T('newTriggerAria')}">
+          <button class="btn ghost" data-action="add-custom">${T('add')}</button></div>
       </div>
     </div>
-    <div class="card"><h2>My medication</h2>
+    <div class="card"><h2>${T('myMedication')}</h2>
       <div class="chips">${s.meds.map((m) =>
-    `<button class="chip on" data-action="remove-med" data-id="${esc(m)}" aria-label="Remove ${esc(m)}">${esc(m)} ×</button>`).join('')}</div>
-      <div class="add-row"><input type="text" id="new-med" maxlength="40" placeholder="e.g. Sumatriptan 50 mg" aria-label="New medication">
-        <button class="btn ghost" data-action="add-med">Add</button></div>
+    `<button class="chip on" data-action="remove-med" data-id="${esc(m)}" aria-label="${T('removeAria', { label: esc(m) })}">${esc(m)} ×</button>`).join('')}</div>
+      <div class="add-row"><input type="text" id="new-med" maxlength="40" placeholder="${T('newMedPlaceholder')}" aria-label="${T('newMedAria')}">
+        <button class="btn ghost" data-action="add-med">${T('add')}</button></div>
     </div>
-    <div class="card"><h2>My data</h2>
-      <p class="hint">Your records live only on this device. Save a backup now and then, and use it to move to a new phone.</p>
+    <div class="card"><h2>${T('myData')}</h2>
+      <p class="hint">${T('dataLivesHere')}</p>
       <p class="hint">${lastBackupText(state.lastBackupAt)}</p>
       <div class="btn-row">
-        <button class="btn ghost" data-action="backup">Save backup</button>
-        <button class="btn ghost" data-action="restore">Restore backup</button>
-        <button class="btn ghost" data-action="export-csv">Download CSV</button>
+        <button class="btn ghost" data-action="backup">${T('saveBackup')}</button>
+        <button class="btn ghost" data-action="restore">${T('restoreBackup')}</button>
+        <button class="btn ghost" data-action="export-csv">${T('downloadCsv')}</button>
       </div>
       <input type="file" id="restore-file" accept="application/json,.json" hidden>
-      <button class="btn danger" data-action="wipe">Delete all my data</button>
+      <button class="btn danger" data-action="wipe">${T('deleteAllData')}</button>
     </div>
-    <div class="card"><h2>About Clary</h2>
-      <p class="hint">Clary is a diary, not a medical device. It cannot diagnose or treat. See a doctor urgently for a sudden severe headache, a headache with weakness, confusion, fever or vision loss, or a pattern that changes quickly.</p>
-      <p class="hint">Privacy: no account, no tracking, nothing leaves this device unless you export it yourself.</p>
-      <p class="hint">To install: open your browser menu and choose “Add to Home Screen”.</p>
+    <div class="card"><h2>${T('aboutClary')}</h2>
+      <p class="hint">${T('aboutClaryDiary')}</p>
+      <p class="hint">${T('privacyLine')}</p>
+      <p class="hint">${T('toInstall')}</p>
     </div>`;
 }
 
@@ -551,14 +594,17 @@ function showReward(date) {
   const sp = speciesFor(st.total - 1);
   const milestone = MILESTONES.find((m) => m.at === st.total && !state.seenMilestones.includes(m.at));
   if (milestone) { state.seenMilestones.push(milestone.at); save(state); }
-  const an = /^[aeiou]/.test(sp.name) ? 'An' : 'A';
+  const speciesName = sp.name[lang()] || sp.name.en;
+  const bloomedLine = lang() === 'en'
+    ? T('bloomedWithArticle', { article: /^[aeiou]/i.test(speciesName) ? 'An' : 'A', species: speciesName })
+    : T('bloomedWithArticle', { species: speciesName });
   $modal.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="reward-title">
     <svg class="bloom" viewBox="-22 -54 44 58" aria-hidden="true">${flower(sp.id, st.total - 1)}</svg>
-    <h2 id="reward-title">${an} ${esc(sp.name)} bloomed</h2>
-    <p>${st.total} ${st.total === 1 ? 'flower' : 'flowers'} in your garden${st.current > 1 ? ` · ${st.current} days in a row` : ''}</p>
-    ${milestone ? `<div class="milestone"><p class="eyebrow">Milestone</p><strong>${esc(milestone.title)}</strong><span>${esc(milestone.text)}</span></div>` : ''}
-    <div class="selfcare"><p class="eyebrow">Your card for today</p><p class="quote">${esc(cardFor(date))}</p></div>
-    <button class="btn primary big" data-action="close-modal">Lovely</button>
+    <h2 id="reward-title">${esc(bloomedLine)}</h2>
+    <p>${st.total} ${T(st.total === 1 ? 'flowerSingular' : 'flowerPlural')} ${T('inYourGarden')}${st.current > 1 ? ` ${T('daysInRow', { n: st.current })}` : ''}</p>
+    ${milestone ? `<div class="milestone"><p class="eyebrow">${T('milestoneLabel')}</p><strong>${esc(milestone.title[lang()] || milestone.title.en)}</strong><span>${esc(milestone.text[lang()] || milestone.text.en)}</span></div>` : ''}
+    <div class="selfcare"><p class="eyebrow">${T('yourCardToday')}</p><p class="quote">${esc(cardFor(date))}</p></div>
+    <button class="btn primary big" data-action="close-modal">${T('lovely')}</button>
   </div>`;
   $modal.hidden = false;
   $modal.querySelector('button').focus();
@@ -569,7 +615,9 @@ const VIEWS = {
   today: viewToday, checkin: viewCheckin, calendar: viewCalendar, insights: viewInsights,
   report: viewReport, garden: viewGarden, settings: viewSettings,
 };
-const NAV = [['today', 'Today'], ['calendar', 'Calendar'], ['insights', 'Insights'], ['garden', 'Garden'], ['settings', 'Settings']];
+function navItems() {
+  return [['today', T('navToday')], ['calendar', T('navCalendar')], ['insights', T('navInsights')], ['garden', T('navGarden')], ['settings', T('navSettings')]];
+}
 const NAV_ICONS = {
   today: '<circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3M5.3 5.3l2.1 2.1M16.6 16.6l2.1 2.1M5.3 18.7l2.1-2.1M16.6 7.4l2.1-2.1"/>',
   calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/>',
@@ -580,6 +628,8 @@ const NAV_ICONS = {
 
 function render(keepScroll = false) {
   const scroll = window.scrollY;
+  document.documentElement.lang = lang();
+  document.title = T('appTitle');
   if (!state.profile.onboarded) {
     $view.innerHTML = viewOnboarding();
     $nav.hidden = true;
@@ -588,7 +638,7 @@ function render(keepScroll = false) {
   $view.innerHTML = VIEWS[ui.view]();
   const hideNav = ui.view === 'checkin' || ui.view === 'report';
   $nav.hidden = hideNav;
-  $nav.innerHTML = NAV.map(([id, label]) =>
+  $nav.innerHTML = navItems().map(([id, label]) =>
     `<button class="${ui.view === id ? 'on' : ''}" data-action="go" data-view="${id}" ${ui.view === id ? 'aria-current="page"' : ''}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.700" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${NAV_ICONS[id]}</svg>
       <span>${label}</span></button>`).join('');
@@ -613,6 +663,7 @@ function openCheckin(date) {
 
 // ---------- actions ----------
 const BOOL_FIELDS = new Set(['headache.had', 'hrt', 'settings.usesHrt', 'settings.trackMeno', 'settings.reminderOn']);
+const SINGLE_CHOICE_STICKY = new Set(['profile.stage', 'period', 'settings.theme', 'settings.lang']);
 
 function applyPick(target, el) {
   const field = el.dataset.field;
@@ -623,9 +674,10 @@ function applyPick(target, el) {
     const i = list.indexOf(value);
     if (i >= 0) list.splice(i, 1); else list.push(value);
   } else {
-    // tapping a selected single choice clears it (except yes/no questions)
+    // tapping a selected single choice clears it, except for a handful of
+    // settings that must always have some value.
     const current = getPath(target, field);
-    const clearable = !BOOL_FIELDS.has(field) && field !== 'profile.stage' && field !== 'period' && field !== 'settings.theme';
+    const clearable = !BOOL_FIELDS.has(field) && !SINGLE_CHOICE_STICKY.has(field);
     setPath(target, field, clearable && current === value ? (el.dataset.num ? 0 : '') : value);
   }
   return field;
@@ -656,7 +708,7 @@ const actions = {
     render(true);
   },
   'delete-checkin': (el) => {
-    if (!confirm('Remove this day’s check-in? This cannot be undone.')) return;
+    if (!confirm(T('confirmDeleteCheckin'))) return;
     delete state.entries[el.dataset.date];
     commit();
     go(el.dataset.date === today() ? 'today' : 'calendar');
@@ -671,6 +723,7 @@ const actions = {
     const field = applyPick(state, el);
     if (field === 'settings.reminderOn' && state.settings.reminderOn) await reminders.askPermission();
     if (field === 'settings.theme') applyTheme();
+    if (field === 'settings.lang') state.settings = swapDefaultMeds(state.settings, state.settings.lang);
     commit();
     render(true);
   },
@@ -694,10 +747,10 @@ const actions = {
   },
   'remove-custom': (el) => {
     // Past check-ins keep their label so history and exports stay readable.
-    state.settings.trackedTriggers = state.settings.trackedTriggers.filter((t) => t !== el.dataset.id);
+    state.settings.trackedTriggers = state.settings.trackedTriggers.filter((c) => c !== el.dataset.id);
     const used = Object.values(state.entries).some((e) => e.triggers.includes(el.dataset.id));
-    if (!used) state.settings.customTriggers = state.settings.customTriggers.filter((t) => t.id !== el.dataset.id);
-    else state.settings.customTriggers.find((t) => t.id === el.dataset.id).hidden = true;
+    if (!used) state.settings.customTriggers = state.settings.customTriggers.filter((c) => c.id !== el.dataset.id);
+    else state.settings.customTriggers.find((c) => c.id === el.dataset.id).hidden = true;
     commit(); render(true);
   },
   'add-med': () => {
@@ -710,8 +763,8 @@ const actions = {
     state.settings.meds = state.settings.meds.filter((m) => m !== el.dataset.id);
     commit(); render(true);
   },
-  'calendar-file': () => download('clary-reminder.ics', reminders.calendarFile(state.settings.reminderTime), 'text/calendar'),
-  'export-csv': () => download(`clary-${today()}.csv`, toCsv(state.entries, labelOf), 'text/csv'),
+  'calendar-file': () => download('clary-reminder.ics', reminders.calendarFile(state.settings.reminderTime, lang()), 'text/calendar'),
+  'export-csv': () => download(`clary-${today()}.csv`, toCsv(state.entries, labelOf, lang()), 'text/csv'),
   backup: () => {
     download(`clary-backup-${today()}.json`, JSON.stringify(state, null, 2), 'application/json');
     state.lastBackupAt = Date.now();
@@ -726,8 +779,11 @@ const actions = {
   },
   restore: () => document.getElementById('restore-file').click(),
   wipe: () => {
-    if (!confirm('Delete every check-in and setting from this device? This cannot be undone.')) return;
+    if (!confirm(T('confirmWipe'))) return;
+    const keepLang = state.settings.lang;
     state = defaultState();
+    state.settings.lang = keepLang;
+    state.settings = swapDefaultMeds(state.settings, keepLang);
     commit();
     render();
   },
@@ -756,11 +812,11 @@ document.addEventListener('change', (ev) => {
   ev.target.files[0].text().then((text) => {
     const data = JSON.parse(text);
     if (!data || typeof data.entries !== 'object') throw new Error('not a backup');
-    if (!confirm('Replace everything on this device with this backup?')) return;
+    if (!confirm(T('confirmRestore'))) return;
     state = normalize(data);
     commit();
     render();
-  }).catch(() => alert('That file does not look like a Clary backup.'));
+  }).catch(() => alert(T('restoreBadFile')));
 });
 
 // Chart tooltips: hover or keyboard focus on a bar.
@@ -790,7 +846,7 @@ function showUpdateBanner(worker) {
   const bar = document.createElement('div');
   bar.id = 'update-banner';
   bar.className = 'update-banner';
-  bar.innerHTML = '<span>A new version of Clary is ready.</span><button class="btn ghost" data-action="apply-update">Refresh</button>';
+  bar.innerHTML = `<span>${T('updateReady')}</span><button class="btn ghost" data-action="apply-update">${T('refresh')}</button>`;
   document.body.prepend(bar);
 }
 actions['apply-update'] = () => waitingWorker?.postMessage('skipWaiting');
