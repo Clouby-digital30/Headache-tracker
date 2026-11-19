@@ -41,6 +41,7 @@ export function defaultState() {
     seenMilestones: [],
     lastBackupAt: null, // timestamp (ms) of the last "Save backup", or null
     backupSnoozedUntil: null, // timestamp (ms): don't remind before this
+    license: { key: null, instanceId: null, valid: false }, // see js/license.js
   };
 }
 
@@ -74,6 +75,12 @@ export function normalize(raw) {
   const base = defaultState();
   if (!raw || typeof raw !== 'object') return base;
   const settings = applyTriggerUpdates({ ...base.settings, ...(raw.settings || {}) });
+  // A saved state with no license field predates the paywall entirely, so
+  // it is grandfathered in rather than suddenly locked out of a feature it
+  // never had to pay for.
+  const license = raw.license
+    ? { ...base.license, ...raw.license }
+    : { key: null, instanceId: null, valid: true, grandfathered: true };
   return {
     ...base,
     ...raw,
@@ -81,6 +88,7 @@ export function normalize(raw) {
     settings,
     entries: migrateEntries(raw.entries && typeof raw.entries === 'object' ? raw.entries : {}),
     seenMilestones: Array.isArray(raw.seenMilestones) ? raw.seenMilestones : [],
+    license,
   };
 }
 

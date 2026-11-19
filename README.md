@@ -31,6 +31,8 @@ stored on the user's own device.
   prompt to save one.
 - **English and Dutch**, chosen at first launch and changeable any time in Settings. Covers every
   screen, the notification, the calendar file, the doctor report and the CSV export.
+- **14 free check-ins, then a one-time unlock.** Existing check-ins, the calendar, insights and
+  garden stay fully visible either way; only adding a new day is gated. See "Selling Clary" below.
 
 ## Run it
 
@@ -56,6 +58,32 @@ To publish, host the folder on any static host with HTTPS, such as GitHub Pages.
 | `js/garden.js`, `js/charts.js` | Garden and charts (SVG) |
 | `js/reminders.js`, `sw.js` | Reminders and offline support |
 | `js/export.js` | CSV and backup downloads |
+| `js/license.js` | Trial limit and Lemon Squeezy license checks |
+
+## Selling Clary
+
+Pricing is a one-time **€14.99**, with buyers free to pay more if they choose. There is still no
+server: the license check calls Lemon Squeezy's public license API straight from the browser, and
+a saved state from before this existed is grandfathered in automatically (anyone who already has
+check-ins when they first open this version is never asked to pay).
+
+To go live:
+
+1. At [lemonsqueezy.com](https://www.lemonsqueezy.com), create a store (this is also where payout
+   details, VAT handling and the Clouby Digital seller profile live).
+2. Create a product named "Clary", one-time purchase, price €14.99. Under "Pay what you want",
+   set a minimum of €9.99 if you want to allow paying more.
+3. On that product, turn on **License Keys** (Product settings → License keys). Set the
+   activation limit to something generous, such as 3, so a buyer can use Clary on a couple of
+   their own devices without issue.
+4. Copy the checkout URL (Share → Copy checkout link) and put it in `js/license.js` as
+   `BUY_URL`, replacing the placeholder.
+5. Commit, push, and let GitHub Pages redeploy.
+
+A buyer pays, gets the license key by email and on the receipt page, and pastes it into Clary
+under Settings → License (or on the paywall they land on after their 14th check-in). No further
+setup is needed on your side after that; Lemon Squeezy handles receipts, VAT and refunds, and a
+refunded key simply stops validating on its own.
 
 ## Good to know
 

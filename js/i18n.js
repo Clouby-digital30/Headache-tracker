@@ -369,6 +369,30 @@ const UI = {
   csvYes: { en: 'yes', nl: 'ja' },
   csvNo: { en: 'no', nl: 'nee' },
 
+  // license / paywall
+  license: { en: 'License', nl: 'Licentie' },
+  licenseUnlocked: { en: 'Clary is unlocked on this device.', nl: 'Clary is ontgrendeld op dit toestel.' },
+  licenseTrialStatus: { en: '{used} of {limit} free check-ins used.', nl: '{used} van de {limit} gratis check-ins gebruikt.' },
+  licenseKeyPlaceholder: { en: 'Paste your license key', nl: 'Plak je licentiesleutel' },
+  licenseKeyAria: { en: 'License key', nl: 'Licentiesleutel' },
+  activate: { en: 'Activate', nl: 'Activeren' },
+  activating: { en: 'Activating…', nl: 'Activeren…' },
+  activateSuccess: { en: 'Clary is unlocked. Thank you!', nl: 'Clary is ontgrendeld. Dank je wel!' },
+  buyClary: { en: 'Buy Clary (€14.99)', nl: 'Koop Clary (€14,99)' },
+  freeUpDevice: { en: 'Free up this device', nl: 'Maak dit toestel vrij' },
+  confirmFreeUpDevice: {
+    en: 'Free up this device’s activation? You can activate again later with the same key.',
+    nl: 'De activering van dit toestel vrijmaken? Je kunt later opnieuw activeren met dezelfde sleutel.',
+  },
+  licenseErrorGeneric: { en: 'That license key did not work. Check it and try again.', nl: 'Die licentiesleutel werkte niet. Controleer hem en probeer het opnieuw.' },
+  licenseErrorNetwork: { en: 'Could not reach the license server. Check your connection and try again.', nl: 'Kon de licentieserver niet bereiken. Controleer je verbinding en probeer het opnieuw.' },
+  paywallTitle: { en: 'You’ve used your 14 free check-ins', nl: 'Je hebt je 14 gratis check-ins gebruikt' },
+  paywallExplain: {
+    en: 'Your existing check-ins are safe, and you can still view your calendar, insights and garden. Unlock Clary to keep adding new days.',
+    nl: 'Je bestaande check-ins zijn veilig, en je kunt je kalender, inzichten en tuin gewoon blijven bekijken. Ontgrendel Clary om nieuwe dagen te blijven toevoegen.',
+  },
+  alreadyBought: { en: 'Already bought Clary?', nl: 'Clary al gekocht?' },
+
   // notifications (also read directly by sw.js via the meta cache)
   notifyTitle: { en: 'How are you feeling today?', nl: 'Hoe voel je je vandaag?' },
   notifyBody: { en: 'A 30-second check-in, and a new flower for your garden.', nl: 'Een check-in van 30 seconden, en een nieuwe bloem voor je tuin.' },
