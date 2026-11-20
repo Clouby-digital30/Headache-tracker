@@ -1,5 +1,6 @@
 // Pattern recognition. Pure functions so they can be tested without a browser.
 import { addDays, parseDate, toDateStr } from './store.js';
+import { TRIPTAN_RE } from './data.js';
 
 const isBleed = (e) => e && e.period && e.period !== 'none' && e.period !== 'spotting';
 const hadHeadache = (e) => !!(e && e.headache && e.headache.had);
@@ -22,9 +23,15 @@ export function dayFactors(entries, date, perimenstrualDays) {
   return f;
 }
 
+// ICHD-3's "perimenstrual" window for menstrual migraine is day -2 to +3
+// relative to the first day of bleeding (day 1).
+const PERIMENSTRUAL_RANGE = [-2, 3];
+
 export function perimenstrualSet(entries) {
   const set = new Set();
-  for (const s of periodStarts(entries)) for (let o = -2; o <= 2; o++) set.add(addDays(s, o));
+  for (const s of periodStarts(entries)) {
+    for (let o = PERIMENSTRUAL_RANGE[0]; o <= PERIMENSTRUAL_RANGE[1]; o++) set.add(addDays(s, o));
+  }
   return set;
 }
 
@@ -101,20 +108,28 @@ export function describePattern(p, label, lang = 'en') {
 
 // Totals for a date range (inclusive).
 export function summarize(entries, from, to) {
-  const s = { logged: 0, headacheDays: 0, migraineDays: 0, medDays: 0, periodDays: 0, intensitySum: 0, restDays: 0 };
+  const s = {
+    logged: 0, headacheDays: 0, migraineDays: 0, auraDays: 0, medDays: 0, periodDays: 0, intensitySum: 0, restDays: 0,
+    stressSum: 0, stressAnswered: 0, sleepSum: 0, sleepAnswered: 0,
+  };
   for (const d of Object.keys(entries)) {
     if (d < from || d > to) continue;
     const e = entries[d];
     s.logged++;
     if (isBleed(e)) s.periodDays++;
+    if (e.stress > 0) { s.stressSum += e.stress; s.stressAnswered++; }
+    if (e.sleep > 0) { s.sleepSum += e.sleep; s.sleepAnswered++; }
     if (!hadHeadache(e)) continue;
     s.headacheDays++;
     s.intensitySum += Number(e.headache.intensity) || 0;
     if (e.headache.type === 'migraine') s.migraineDays++;
+    if ((e.headache.symptoms || []).includes('aura')) s.auraDays++;
     if ((e.headache.meds || []).length) s.medDays++;
     if (e.headache.impact === 'rest') s.restDays++;
   }
   s.avgIntensity = s.headacheDays ? s.intensitySum / s.headacheDays : 0;
+  s.avgStress = s.stressAnswered ? s.stressSum / s.stressAnswered : 0;
+  s.avgSleep = s.sleepAnswered ? s.sleepSum / s.sleepAnswered : 0;
   return s;
 }
 
@@ -163,6 +178,73 @@ export function medOveruse(entries, endStr) {
   return { medDays, perMonth, flag: perMonth >= 10 };
 }
 
+const isTriptanDay = (e) => (e?.headache?.meds || []).some((m) => TRIPTAN_RE.test(m));
+const isSimpleMedDay = (e) => (e?.headache?.meds || []).some((m) => !TRIPTAN_RE.test(m));
+
+// Days of triptan use vs. simple-analgesic use in a range. Kept separate
+// because medication-overuse headache uses different thresholds per class
+// (commonly: triptans/combination analgesics 10+ days/month, simple
+// analgesics such as paracetamol or NSAIDs 15+ days/month, for 3+ months).
+export function medClassSummary(entries, from, to) {
+  let triptanDays = 0, simpleDays = 0;
+  for (const d of Object.keys(entries)) {
+    if (d < from || d > to) continue;
+    const e = entries[d];
+    if (!hadHeadache(e)) continue;
+    if (isTriptanDay(e)) triptanDays++;
+    if (isSimpleMedDay(e)) simpleDays++;
+  }
+  return { triptanDays, simpleDays };
+}
+
+// Same split, as a monthly average over the last 90 days, each against its
+// own overuse threshold.
+export function medOveruseByClass(entries, endStr) {
+  const { triptanDays, simpleDays } = medClassSummary(entries, addDays(endStr, -89), endStr);
+  const triptanPerMonth = triptanDays / 3, simplePerMonth = simpleDays / 3;
+  return {
+    triptan: { days: triptanDays, perMonth: triptanPerMonth, flag: triptanPerMonth >= 10 },
+    simple: { days: simpleDays, perMonth: simplePerMonth, flag: simplePerMonth >= 15 },
+  };
+}
+
+// Triptan and simple-analgesic days per calendar month, oldest first, for
+// the last `count` months - the shape a doctor can scan at a glance.
+export function medClassByMonth(entries, count, endStr) {
+  const end = parseDate(endStr);
+  const out = [];
+  for (let i = count - 1; i >= 0; i--) {
+    const m = new Date(end.getFullYear(), end.getMonth() - i, 1, 12);
+    const key = toDateStr(m).slice(0, 7);
+    const from = `${key}-01`, to = `${key}-31`;
+    const { triptanDays, simpleDays } = medClassSummary(entries, from, to);
+    out.push({ key, month: m.getMonth(), year: m.getFullYear(), triptanDays, simpleDays });
+  }
+  return out;
+}
+
+// Of the last `count` menstrual cycles, how many had a migraine (not just
+// any headache) in the perimenstrual window - the ICHD-3 question behind
+// "menstrual migraine". A cycle only counts toward the total once there is
+// at least one logged day in its window, so missing data isn't read as "no".
+export function menstrualMigraineStat(entries, count = 3) {
+  const starts = periodStarts(entries).slice(-count);
+  let checked = 0, withMigraine = 0;
+  for (const start of starts) {
+    let logged = false, migraine = false;
+    for (let o = PERIMENSTRUAL_RANGE[0]; o <= PERIMENSTRUAL_RANGE[1]; o++) {
+      const e = entries[addDays(start, o)];
+      if (!e) continue;
+      logged = true;
+      if (hadHeadache(e) && e.headache.type === 'migraine') migraine = true;
+    }
+    if (!logged) continue;
+    checked++;
+    if (migraine) withMigraine++;
+  }
+  return { checked, withMigraine };
+}
+
 const MIN_CYCLES = 2;
 const PLAUSIBLE_CYCLE = [14, 60]; // days; outside this, a gap is probably a logging gap, not a real cycle
 
@@ -203,6 +285,33 @@ export function cycleInsight(entries, todayStr) {
     daysUntil,
     regular: spread <= 3,
   };
+}
+
+// HRT days and how often each menopause symptom was logged, over a range -
+// the detail a doctor report needs that a trigger-focused summary doesn't give.
+export function menoSymptomCounts(entries, from, to) {
+  const counts = new Map();
+  let days = 0, hrtDays = 0;
+  for (const d of Object.keys(entries)) {
+    if (d < from || d > to) continue;
+    days++;
+    const e = entries[d];
+    if (e.hrt) hrtDays++;
+    for (const m of e.meno || []) counts.set(m, (counts.get(m) || 0) + 1);
+  }
+  const items = [...counts.entries()]
+    .map(([id, count]) => ({ id, count }))
+    .sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
+  return { days, hrtDays, items };
+}
+
+// How many weeks of check-ins exist up to `endStr`, from the very first one.
+// Used to frame how close a tracking history is to the ~8 weeks doctors
+// generally find most useful for spotting a pattern.
+export function trackingSpanWeeks(entries, endStr) {
+  const dates = Object.keys(entries).sort();
+  if (!dates.length) return 0;
+  return Math.max(0, Math.round((parseDate(endStr) - parseDate(dates[0])) / (7 * 86400000)));
 }
 
 // How often each already-chosen trigger or menopause symptom was logged, over

@@ -222,6 +222,61 @@ const UI = {
   colPeriod: { en: 'Period', nl: 'Menstruatie' },
   colLoggedFactors: { en: 'Logged factors', nl: 'Gelogde factoren' },
   daysSuffix: { en: '({n} days)', nl: '({n} dagen)' },
+  kvAuraDays: { en: 'Headache days with aura', nl: 'Hoofdpijndagen met aura' },
+
+  reportMenoCycleTitle: { en: 'Menopause and cycle', nl: 'Overgang en cyclus' },
+  reportHrtDays: { en: 'Days HRT was taken', nl: 'Dagen HRT ingenomen' },
+  reportMenoSymptomsIntro: { en: 'How often each symptom was logged:', nl: 'Hoe vaak elk symptoom werd gelogd:' },
+  reportNoMenoSymptoms: { en: 'No menopause symptoms logged in this period.', nl: 'Geen overgangsklachten gelogd in deze periode.' },
+  reportMenstrualMigraine: {
+    en: '{withN} of the last {checked} cycles had a migraine in the perimenstrual window (2 days before to 3 days after the period started).',
+    nl: '{withN} van de laatste {checked} cycli hadden migraine in het perimenstruele venster (2 dagen voor tot 3 dagen na de start van de menstruatie).',
+  },
+  reportAvgSleepStress: {
+    en: 'Average sleep quality {sleep} / 5, average stress {stress} / 5 (on days answered).',
+    nl: 'Gemiddelde slaapkwaliteit {sleep} / 5, gemiddelde stress {stress} / 5 (op beantwoorde dagen).',
+  },
+
+  reportMedicationTitle: { en: 'Medication detail', nl: 'Medicatiedetail' },
+  reportMedExplain: {
+    en: 'Triptans and simple analgesics (such as paracetamol or ibuprofen) have different overuse thresholds: 10 or more days a month for triptans, 15 or more for simple analgesics, for three months or longer.',
+    nl: 'Triptanen en gewone pijnstillers (zoals paracetamol of ibuprofen) hebben verschillende grenzen voor overgebruik: 10 of meer dagen per maand voor triptanen, 15 of meer voor gewone pijnstillers, gedurende drie maanden of langer.',
+  },
+  colTriptanDays: { en: 'Triptan days', nl: 'Triptaandagen' },
+  colSimpleDays: { en: 'Simple analgesic days', nl: 'Dagen gewone pijnstilling' },
+  medOveruseTriptanFlag: {
+    en: 'Triptan use has averaged {n} days a month over the last three months, at or above the usual overuse threshold.',
+    nl: 'Triptaangebruik lag de afgelopen drie maanden gemiddeld op {n} dagen per maand, op of boven de gebruikelijke grens voor overgebruik.',
+  },
+  medOveruseSimpleFlag: {
+    en: 'Simple analgesic use has averaged {n} days a month over the last three months, at or above the usual overuse threshold.',
+    nl: 'Gebruik van gewone pijnstillers lag de afgelopen drie maanden gemiddeld op {n} dagen per maand, op of boven de gebruikelijke grens voor overgebruik.',
+  },
+
+  patternsCaution: {
+    en: 'Only patterns seen on 8 or more days are shown here, to limit coincidental results - with many factors tracked, some apparent patterns arise by chance. The Insights screen in the app also shows earlier, weaker signals, clearly marked as such.',
+    nl: 'Hier staan alleen patronen die op 8 of meer dagen zijn gezien, om toevalstreffers te beperken. Met zoveel bijgehouden factoren ontstaan er soms patronen door toeval. Het Inzichten-scherm in de app toont ook eerdere, zwakkere signalen, duidelijk als zodanig gelabeld.',
+  },
+  noStrongPatternsYet: {
+    en: 'No pattern has reached 8 days of evidence yet. The Insights screen may show earlier, weaker signals.',
+    nl: 'Nog geen patroon met 8 of meer dagen aan onderbouwing. Het Inzichten-scherm kan eerdere, zwakkere signalen tonen.',
+  },
+
+  trackingWeeksReport: { en: 'About {weeks} weeks of tracking so far.', nl: 'Tot nu toe ongeveer {weeks} weken aan gegevens.' },
+  trackingWeeksGuidance: {
+    en: 'Doctors generally find around 8 weeks of tracking most useful for spotting a pattern.',
+    nl: 'Artsen vinden ongeveer 8 weken aan gegevens meestal het nuttigst om een patroon te herkennen.',
+  },
+  eightWeeksNoteInsights: {
+    en: 'Doctors generally find about 8 weeks of tracking most useful for a report they can act on. You have about {weeks} so far.',
+    nl: 'Artsen vinden ongeveer 8 weken aan gegevens meestal het nuttigst voor een rapport waar ze iets mee kunnen. Jij hebt er tot nu toe ongeveer {weeks}.',
+  },
+
+  quickMenoLabel: { en: 'Any of these today?', nl: 'Vandaag iets hiervan?' },
+  suddenOnsetWarning: {
+    en: 'A headache that reaches its worst within minutes is worth telling a doctor about, especially if it is new or unusual for you. If this is the worst headache of your life, seek urgent care.',
+    nl: 'Een hoofdpijn die binnen enkele minuten op zijn ergst is, is het vermelden waard bij een arts, zeker als dit nieuw of ongebruikelijk voor je is. Is dit de ergste hoofdpijn van je leven, zoek dan spoedhulp.',
+  },
 
   // garden
   yourGarden: { en: 'Your garden', nl: 'Jouw tuin' },

@@ -1,6 +1,6 @@
 import {
   TRIGGER_GROUPS, PERIOD_LEVELS, HEADACHE_TYPES, DURATIONS, ONSET, LOCATIONS, HEADACHE_SYMPTOMS, IMPACT, RELIEF,
-  MENO_SYMPTOMS, STAGES, DERIVED_LABELS, MILESTONES, SPECIES, CARDS,
+  MENO_SYMPTOMS, QUICK_MENO_SYMPTOMS, STAGES, DERIVED_LABELS, MILESTONES, SPECIES, CARDS,
 } from './data.js';
 import {
   load, save, today, addDays, parseDate, toDateStr, emptyEntry, streaks, defaultState, normalize, backupDue,
@@ -8,6 +8,7 @@ import {
 } from './store.js';
 import {
   findPatterns, describePattern, summarize, monthly, byWeekday, medDaysLast30, medOveruse, cycleInsight, mostLogged,
+  medOveruseByClass, medClassByMonth, menstrualMigraineStat, menoSymptomCounts, trackingSpanWeeks,
 } from './insights.js';
 import { gardenScene, flower, speciesFor } from './garden.js';
 import { barChart, compareBars, rankList } from './charts.js';
@@ -263,10 +264,11 @@ function viewCheckin() {
         <input type="range" min="1" max="10" step="1" value="${h.intensity}" data-field="headache.intensity" data-num="1" aria-label="${T('intensityAria')}">
         <div class="scale-ends"><span>${T('mild')}</span><span>${T('unbearable')}</span></div></label>
       <div class="field"><span>${T('whatKind')}</span>${chips('headache.type', L(HEADACHE_TYPES), h.type, false)}</div>
+      <div class="field"><span>${T('howDidItStart')}</span>${chips('headache.onset', L(ONSET), h.onset, false)}</div>
+      ${h.onset === 'sudden' ? `<p class="hint warning">${T('suddenOnsetWarning')}</p>` : ''}
     </div>` : '';
 
   const headacheMore = h.had ? `
-    <div class="field"><span>${T('howDidItStart')}</span>${chips('headache.onset', L(ONSET), h.onset, false)}</div>
     <div class="field"><span>${T('howLongDidItLast')}</span>${chips('headache.duration', L(DURATIONS), h.duration, false)}</div>
     <div class="field"><span>${T('whereDidYouFeelIt')}</span>${chips('headache.locations', L(LOCATIONS), h.locations, true)}</div>
     <div class="field"><span>${T('whatCameWithIt')}</span>${chips('headache.symptoms', L(HEADACHE_SYMPTOMS), h.symptoms, true)}</div>
@@ -304,6 +306,10 @@ function viewCheckin() {
       ${headacheQuick}
     </div>
     ${state.profile.stage !== 'none' ? `<div class="card"><h3>${T('period')}</h3>${chips('period', L(PERIOD_LEVELS), d.period, false)}</div>` : ''}
+    ${s.trackMeno ? `<div class="card">
+      <h3>${T('quickMenoLabel')}</h3>
+      ${chips('meno', L(MENO_SYMPTOMS.filter(([id]) => QUICK_MENO_SYMPTOMS.includes(id))), d.meno, true)}
+    </div>` : ''}
     <div class="card">
       <h3>${T('stress')}</h3>${scale('stress', d.stress, T('calm'), T('veryStressed'))}
       <h3 class="gap">${T('lastNightSleep')}</h3>${scale('sleep', d.sleep, T('poor'), T('great'))}
@@ -448,6 +454,7 @@ function viewInsights() {
     ${mostLoggedCard}
     <div class="card"><h2>${T('takeItWithYou')}</h2>
       <p class="hint">${T('reportOrSpreadsheet')}</p>
+      <p class="hint">${T('eightWeeksNoteInsights', { weeks: trackingSpanWeeks(state.entries, to) })}</p>
       <div class="btn-row">
         <button class="btn primary" data-action="go" data-view="report">${T('doctorReportPdf')}</button>
         <button class="btn ghost" data-action="export-csv">${T('downloadCsv')}</button>
@@ -459,13 +466,30 @@ function viewReport() {
   const { from, to } = rangeBounds();
   const s = summarize(state.entries, from, to);
   const pat = findPatterns(state.entries);
+  const strongRisks = pat.ready ? pat.risks.filter((p) => p.strong) : [];
   const months = monthly(state.entries, 12, to).filter((m) => m.logged > 0);
+  const weeks = trackingSpanWeeks(state.entries, to);
   const rows = Object.keys(state.entries).sort().filter((d) => d >= from && d <= to && state.entries[d].headache.had).map((d) => {
     const e = state.entries[d], h = e.headache;
     return `<tr><td>${d}</td><td>${h.intensity}</td><td>${esc(labelOf(h.type))}</td><td>${esc(labelOf(h.onset))}</td><td>${esc(labelOf(h.duration))}</td>
       <td>${esc(h.symptoms.map(labelOf).join(', '))}</td><td>${esc(h.meds.join(', '))}${h.relief ? ` (${esc(labelOf(h.relief).toLowerCase())})` : ''}</td>
       <td>${e.period !== 'none' ? esc(labelOf(e.period)) : ''}</td><td>${esc(e.triggers.map(labelOf).join(', '))}</td></tr>`;
   }).join('');
+
+  // Medication detail: a rolling 3-month view regardless of the selected
+  // range, since overuse is inherently assessed over 3+ months.
+  const medClasses = medOveruseByClass(state.entries, to);
+  const medMonths = medClassByMonth(state.entries, 3, to);
+  const medFlags = [
+    medClasses.triptan.flag ? T('medOveruseTriptanFlag', { n: medClasses.triptan.perMonth.toFixed(1) }) : '',
+    medClasses.simple.flag ? T('medOveruseSimpleFlag', { n: medClasses.simple.perMonth.toFixed(1) }) : '',
+  ].filter(Boolean);
+
+  // Menopause and cycle: only shown where it applies to this user at all.
+  const meno = state.settings.trackMeno ? menoSymptomCounts(state.entries, from, to) : null;
+  const migraineStat = state.profile.stage !== 'none' ? menstrualMigraineStat(state.entries, 3) : null;
+  const showMenoCycleSection = !!meno || (migraineStat && migraineStat.checked > 0);
+
   return `<header class="top with-back no-print">
       <button class="icon-btn" data-action="go" data-view="insights" aria-label="${T('back')}">‹</button>
       <h1>${T('doctorReport')}</h1>
@@ -474,9 +498,11 @@ function viewReport() {
     <article class="report card">
       <h2>${state.profile.name ? T('headacheReportFor', { name: esc(state.profile.name) }) : T('headacheReport')}</h2>
       <p>${niceDate(from, { day: 'numeric', month: 'long', year: 'numeric' })} ${T('toDate')} ${niceDate(to, { day: 'numeric', month: 'long', year: 'numeric' })} · ${T('daysRecorded', { n: s.logged })}</p>
+      <p class="fine">${T('trackingWeeksReport', { weeks })} ${T('trackingWeeksGuidance')}</p>
       <table class="kv">
         <tr><th>${T('kvHeadacheDays')}</th><td>${s.headacheDays}</td></tr>
         <tr><th>${T('kvMigraine')}</th><td>${s.migraineDays}</td></tr>
+        <tr><th>${T('kvAuraDays')}</th><td>${s.auraDays}</td></tr>
         <tr><th>${T('kvAvgIntensity')}</th><td>${s.headacheDays ? `${s.avgIntensity.toFixed(1)} / 10` : '–'}</td></tr>
         <tr><th>${T('kvPainRelief')}</th><td>${s.medDays}</td></tr>
         <tr><th>${T('kvRest')}</th><td>${s.restDays}</td></tr>
@@ -485,10 +511,25 @@ function viewReport() {
       <h3>${T('perMonth')}</h3>
       <table><tr><th>${T('colMonth')}</th><th>${T('colDaysRecorded')}</th><th>${T('colHeadacheDays')}</th></tr>
         ${months.map((m) => `<tr><td>${monthLabel(m.year, m.month)} ${m.year}</td><td>${m.logged}</td><td>${m.headacheDays}</td></tr>`).join('')}</table>
+      <h3>${T('reportMedicationTitle')}</h3>
+      <p>${T('reportMedExplain')}</p>
+      <table><tr><th>${T('colMonth')}</th><th>${T('colTriptanDays')}</th><th>${T('colSimpleDays')}</th></tr>
+        ${medMonths.map((m) => `<tr><td>${monthLabel(m.year, m.month)} ${m.year}</td><td>${m.triptanDays}</td><td>${m.simpleDays}</td></tr>`).join('')}</table>
+      ${medFlags.map((f) => `<p class="fine">${f}</p>`).join('')}
+      ${showMenoCycleSection ? `
+      <h3>${T('reportMenoCycleTitle')}</h3>
+      ${meno ? `<p>${T('reportHrtDays')}: ${meno.hrtDays}</p>
+        <p>${T('reportMenoSymptomsIntro')}</p>
+        ${meno.items.length
+    ? `<ul>${meno.items.map((i) => `<li>${esc(labelOf(i.id))}: ${i.count}</li>`).join('')}</ul>`
+    : `<p>${T('reportNoMenoSymptoms')}</p>`}` : ''}
+      ${migraineStat && migraineStat.checked > 0 ? `<p>${T('reportMenstrualMigraine', { withN: migraineStat.withMigraine, checked: migraineStat.checked })}</p>` : ''}
+      <p>${T('reportAvgSleepStress', { sleep: s.avgSleep ? s.avgSleep.toFixed(1) : '–', stress: s.avgStress ? s.avgStress.toFixed(1) : '–' })}</p>` : ''}
       <h3>${T('observedPatterns')}</h3>
-      ${pat.ready && pat.risks.length
-    ? `<ul>${pat.risks.slice(0, 8).map((p) => `<li>${esc(describePattern(p, factorPhrase(p.id), lang()))} ${T('daysSuffix', { n: p.days })}</li>`).join('')}</ul>`
-    : `<p>${T('noClearPatterns')}</p>`}
+      <p class="fine">${T('patternsCaution')}</p>
+      ${strongRisks.length
+    ? `<ul>${strongRisks.slice(0, 8).map((p) => `<li>${esc(describePattern(p, factorPhrase(p.id), lang()))} ${T('daysSuffix', { n: p.days })}</li>`).join('')}</ul>`
+    : `<p>${T('noStrongPatternsYet')}</p>`}
       <h3>${T('headacheLog')}</h3>
       ${rows ? `<table class="log"><tr><th>${T('colDate')}</th><th>${T('colIntensity')}</th><th>${T('colType')}</th><th>${T('colOnset')}</th><th>${T('colDuration')}</th><th>${T('colSymptoms')}</th><th>${T('colMedication')}</th><th>${T('colPeriod')}</th><th>${T('colLoggedFactors')}</th></tr>${rows}</table>` : `<p>${T('noHeadachesRecorded')}</p>`}
       <p class="fine">${T('reportDisclaimer')}</p>
@@ -762,7 +803,16 @@ const actions = {
   'open-checkin': (el) => openCheckin(el.dataset.date),
   'close-checkin': () => go(ui.draftDate === today() ? 'today' : 'calendar'),
   'toggle-more': () => { ui.showMore = !ui.showMore; render(true); },
-  pick: (el) => { applyPick(ui.draft, el); render(true); },
+  pick: (el) => {
+    const field = applyPick(ui.draft, el);
+    render(true);
+    // The sudden-onset warning can land behind the sticky save button at some
+    // scroll positions; nudge it fully into view (scroll-margin-bottom keeps
+    // it clear of that bar) the moment it appears.
+    if (field === 'headache.onset' && ui.draft.headache.onset === 'sudden') {
+      requestAnimationFrame(() => document.querySelector('.hint.warning')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }));
+    }
+  },
   'save-checkin': () => {
     const d = ui.draft;
     if (!d.headache.had) d.headache = emptyEntry().headache;
