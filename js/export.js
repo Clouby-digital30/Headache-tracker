@@ -1,8 +1,7 @@
 // CSV export, JSON backup and file download helpers.
 import { t } from './i18n.js';
 
-export function download(filename, text, type) {
-  const url = URL.createObjectURL(new Blob([text], { type }));
+function downloadUrl(filename, url) {
   const a = document.createElement('a');
   a.href = url;
   a.download = filename;
@@ -10,6 +9,42 @@ export function download(filename, text, type) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+export function download(filename, text, type) {
+  downloadUrl(filename, URL.createObjectURL(new Blob([text], { type })));
+}
+
+export function downloadBlob(filename, blob) {
+  downloadUrl(filename, URL.createObjectURL(blob));
+}
+
+// Renders an inline <svg> element to a PNG and downloads it. The SVG must be
+// fully self-contained (no external images or fonts) - this one is.
+export function downloadSvgAsPng(filename, svgEl, scale = 3) {
+  const vb = svgEl.viewBox.baseVal;
+  const width = (vb && vb.width) || svgEl.clientWidth || 360;
+  const height = (vb && vb.height) || svgEl.clientHeight || 240;
+  const xml = new XMLSerializer().serializeToString(svgEl);
+  const svgUrl = URL.createObjectURL(new Blob([xml], { type: 'image/svg+xml' }));
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      URL.revokeObjectURL(svgUrl);
+      canvas.toBlob((blob) => {
+        if (!blob) { reject(new Error('toBlob failed')); return; }
+        downloadBlob(filename, blob);
+        resolve();
+      }, 'image/png');
+    };
+    img.onerror = () => { URL.revokeObjectURL(svgUrl); reject(new Error('image load failed')); };
+    img.src = svgUrl;
+  });
 }
 
 function cell(v) {

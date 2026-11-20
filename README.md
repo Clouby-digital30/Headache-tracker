@@ -50,6 +50,11 @@ stored on the user's own device.
   limit coincidental results from the many factors tracked (the Insights screen in the app still
   shows earlier, clearly-labelled weaker signals). The report also notes how many weeks of
   tracking exist so far, since doctors generally find about 8 weeks most useful.
+- **A more personal garden**: name your garden (onboarding or Settings); the sky shows the real
+  current season and a small moon-phase badge; a protea blooms at a year ("blooms most strongly
+  after fire" - a symbol of change) alongside butterflies and, at a year, a tree that stays; tap
+  any flower to look back on that day's check-in and any note you wrote; and a "Save garden photo"
+  button turns it into a PNG to keep or share.
 
 ## Run it
 
