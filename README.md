@@ -36,6 +36,20 @@ stored on the user's own device.
 - **Install guide**: step-by-step per platform (a real one-tap button on Android/Chrome when the
   browser offers it, manual steps for iPhone), reachable from Settings and shown automatically
   right after a license activates.
+- **Quick menopause check**: hot flashes, night sweats, trouble sleeping and mood swings are asked
+  in the main check-in (not only under "More detail"), so they get logged often enough to say
+  something meaningful; the full symptom list is still there for more detail.
+- **A safety note on sudden-onset headaches**: choosing "Came on suddenly" shows a short message
+  about mentioning this to a doctor, since a headache reaching its worst within minutes is a
+  recognised reason to seek medical advice.
+- **A fuller doctor report**: the perimenstrual window now follows ICHD-3 (2 days before to 3 days
+  after a period starts, not 2/2), with a "migraine in the window in X of your last 3 cycles" line;
+  aura days, HRT days, menopause symptom frequency, and average sleep/stress are included; pain
+  medication is split into triptan and simple-analgesic days per month, each checked against its
+  own overuse threshold (10 and 15 days/month); and only patterns seen on 8+ days are listed, to
+  limit coincidental results from the many factors tracked (the Insights screen in the app still
+  shows earlier, clearly-labelled weaker signals). The report also notes how many weeks of
+  tracking exist so far, since doctors generally find about 8 weeks most useful.
 
 ## Run it
 

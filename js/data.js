@@ -171,6 +171,7 @@ export const IMPACT = [
   ['carried_on', { en: 'Carried on as normal', nl: 'Gewoon doorgegaan' }],
   ['slowed', { en: 'Slowed me down', nl: 'Vertraagde me' }],
   ['rest', { en: 'Had to rest or lie down', nl: 'Moest rusten of liggen' }],
+  ['missed_work', { en: 'Could not work, or cancelled plans', nl: 'Kon niet werken, of zegde afspraken af' }],
 ];
 
 export const RELIEF = [
@@ -184,6 +185,16 @@ export const DEFAULT_MEDS = {
   en: ['Paracetamol', 'Ibuprofen', 'Naproxen', 'Aspirin', 'Triptan', 'Anti-nausea'],
   nl: ['Paracetamol', 'Ibuprofen', 'Naproxen', 'Aspirine', 'Triptaan', 'Anti-misselijkheid'],
 };
+
+// Shown directly in the daily check-in (not only under "More detail"), so
+// the most common symptoms actually get logged often enough for patterns
+// and the doctor report to say something meaningful about them.
+export const QUICK_MENO_SYMPTOMS = ['hot_flash', 'night_sweats', 'insomnia', 'mood_swings'];
+
+// Matches "Triptan"/"Triptaan" (the built-in generic entry) and any named
+// triptan ("Sumatriptan", "Rizatriptan", ...), for the medication-overuse
+// split: triptans are flagged from 10 days/month, simple analgesics from 15.
+export const TRIPTAN_RE = /tript/i; // matches "Triptan", Dutch "Triptaan", and named ones like "Sumatriptan"
 
 export const MENO_SYMPTOMS = [
   ['hot_flash', { en: 'Hot flashes', nl: 'Opvliegers' }],
@@ -212,8 +223,8 @@ export const STAGES = [
 export const DERIVED_LABELS = {
   period: { en: 'your period', nl: 'je menstruatie' },
   perimenstrual: {
-    en: 'the start of your period (from two days before to two days after)',
-    nl: 'het begin van je menstruatie (van twee dagen ervoor tot twee dagen erna)',
+    en: 'the start of your period (from two days before to three days after)',
+    nl: 'het begin van je menstruatie (van twee dagen ervoor tot drie dagen erna)',
   },
   stress_high: { en: 'high stress', nl: 'hoge stress' },
   sleep_poor: { en: 'poor sleep', nl: 'slechte slaap' },
