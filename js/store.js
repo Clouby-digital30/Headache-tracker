@@ -24,7 +24,7 @@ export const today = () => toDateStr(new Date());
 export function defaultState() {
   return {
     version: 1,
-    profile: { name: '', stage: 'irregular', onboarded: false },
+    profile: { name: '', gardenName: '', stage: 'irregular', onboarded: false },
     settings: {
       lang: 'en', // 'en' | 'nl'
       theme: 'auto', // 'auto' | 'light' | 'dark'

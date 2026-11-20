@@ -12,7 +12,7 @@ import {
 } from './insights.js';
 import { gardenScene, flower, speciesFor } from './garden.js';
 import { barChart, compareBars, rankList } from './charts.js';
-import { download, toCsv } from './export.js';
+import { download, toCsv, downloadSvgAsPng } from './export.js';
 import { t, LOCALE } from './i18n.js';
 import * as reminders from './reminders.js';
 import { BUY_URL, TRIAL_LIMIT, trialUsed, isLicensed, trialExhausted, applyLicenseKey, revalidate, releaseDevice } from './license.js';
@@ -135,6 +135,8 @@ function viewOnboarding() {
     <div class="card">
       <label class="field"><span>${T('nameQuestion')} <em>${T('optional')}</em></span>
         <input type="text" id="ob-name" value="${esc(p.name)}" maxlength="30" autocomplete="given-name"></label>
+      <label class="field"><span>${T('gardenNameQuestion')} <em>${T('optional')}</em></span>
+        <input type="text" id="ob-garden-name" value="${esc(p.gardenName)}" maxlength="30" placeholder="${T('gardenNamePlaceholder')}"></label>
       <div class="field"><span>${T('stageQuestion')}</span>
         ${chips('profile.stage', L(STAGES), p.stage, false).replace(/data-action="pick"/g, 'data-action="setting"')}
       </div>
@@ -245,7 +247,7 @@ function viewToday() {
   return `<header class="top"><h1>${greeting()}</h1></header>
     ${hero}${catchUp}${backupNote}
     <button class="card garden-peek" data-action="go" data-view="garden" aria-label="${T('openYourGarden')}">
-      ${gardenScene(st.total)}
+      ${gardenScene(st.total, { emptyText: T('gardenEmpty') })}
       <div class="peek-stats"><span><strong>${st.total}</strong> ${T(st.total === 1 ? 'bloomSingular' : 'bloomPlural')}</span><span><strong>${st.current}</strong> ${T('dayStreak')}</span></div>
     </button>
     ${cycleCard(cycle, t0)}
@@ -540,8 +542,12 @@ function viewGarden() {
   const st = streaks(state.entries);
   const next = MILESTONES.find((m) => m.at > st.total);
   const earned = MILESTONES.filter((m) => m.at <= st.total).reverse();
-  return `<header class="top"><h1>${T('yourGarden')}</h1></header>
-    <div class="card flush">${gardenScene(st.total)}</div>
+  const dates = Object.keys(state.entries).sort();
+  const title = state.profile.gardenName ? esc(state.profile.gardenName) : T('yourGarden');
+  return `<header class="top"><h1>${title}</h1></header>
+    <div class="card flush">${gardenScene(st.total, { dates, interactive: true, emptyText: T('gardenEmpty') })}</div>
+    ${st.total ? `<p class="hint center">${T('tapAFlower')}</p>` : ''}
+    <div class="btn-row center"><button class="btn ghost" data-action="save-garden-photo">${T('saveGardenPhoto')}</button></div>
     <div class="tiles">${tile(st.total, T(st.total === 1 ? 'bloomSingular' : 'bloomPlural'))}${tile(st.current, T('dayStreak'))}${tile(st.best, T('longestStreak'))}</div>
     <p class="hint center">${T('gardenNeverWilts')}</p>
     ${next ? `<div class="card"><p class="eyebrow">${T('nextMilestone')}</p><h2>${esc(next.title[lang()] || next.title.en)}</h2>
@@ -550,7 +556,8 @@ function viewGarden() {
     <div class="card"><h2>${T('flowers')}</h2><div class="species">${SPECIES.map((sp, i) => {
     const open = st.total >= sp.at;
     return `<div class="sp${open ? '' : ' locked'}"><svg viewBox="-14 -50 28 52" aria-hidden="true">${flower(sp.id, i)}</svg>
-        <span>${open ? esc(sp.name[lang()] || sp.name.en) : T('atCount', { n: sp.at })}</span></div>`;
+        <span>${open ? esc(sp.name[lang()] || sp.name.en) : T('atCount', { n: sp.at })}</span>
+        ${open && sp.meaning ? `<span class="meaning">${esc(sp.meaning[lang()] || sp.meaning.en)}</span>` : ''}</div>`;
   }).join('')}</div></div>
     ${earned.length ? `<div class="card"><h2>${T('milestones')}</h2><ul class="milestones">${earned.map((m) =>
     `<li><strong>${esc(m.title[lang()] || m.title.en)}</strong><span>${esc(m.text[lang()] || m.text.en)}</span></li>`).join('')}</ul></div>` : ''}
@@ -651,6 +658,7 @@ function viewSettings() {
     </div>
     <div class="card"><h2>${T('aboutYou')}</h2>
       <label class="field"><span>${T('name')}</span><input type="text" data-setting="profile.name" value="${esc(p.name)}" maxlength="30"></label>
+      <label class="field"><span>${T('gardenNameSetting')}</span><input type="text" data-setting="profile.gardenName" value="${esc(p.gardenName)}" maxlength="30" placeholder="${T('gardenNamePlaceholder')}"></label>
       <div class="field"><span>${T('cycle')}</span>${toSetting(chips('profile.stage', L(STAGES), p.stage, false))}</div>
       <div class="field"><span>${T('hrtSetting')}</span>${toSetting(chips('settings.usesHrt', [['yes', T('yes')], ['no', T('no')]], s.usesHrt ? 'yes' : 'no', false))}</div>
       <div class="field"><span>${T('trackMenoSetting')}</span>${toSetting(chips('settings.trackMeno', [['yes', T('yes')], ['no', T('no')]], s.trackMeno ? 'yes' : 'no', false))}</div>
@@ -718,6 +726,26 @@ function showReward(date) {
     <p>${st.total} ${T(st.total === 1 ? 'flowerSingular' : 'flowerPlural')} ${T('inYourGarden')}${st.current > 1 ? ` ${T('daysInRow', { n: st.current })}` : ''}</p>
     ${milestone ? `<div class="milestone"><p class="eyebrow">${T('milestoneLabel')}</p><strong>${esc(milestone.title[lang()] || milestone.title.en)}</strong><span>${esc(milestone.text[lang()] || milestone.text.en)}</span></div>` : ''}
     <div class="selfcare"><p class="eyebrow">${T('yourCardToday')}</p><p class="quote">${esc(cardFor(date))}</p></div>
+    <button class="btn primary big" data-action="close-modal">${T('lovely')}</button>
+  </div>`;
+  $modal.hidden = false;
+  $modal.querySelector('button').focus();
+}
+
+// A tap on any flower in the full garden view: which day it was, and what
+// was logged that day, with a note if one was written.
+function showFlowerDay(date) {
+  const e = state.entries[date];
+  if (!e) return;
+  const dates = Object.keys(state.entries).sort();
+  const index = dates.indexOf(date);
+  const sp = speciesFor(index);
+  $modal.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="flower-day-title">
+    <svg class="bloom" viewBox="-22 -54 44 58" aria-hidden="true">${flower(sp.id, index)}</svg>
+    <h2 id="flower-day-title">${esc(niceDate(date))}</h2>
+    <p>${summaryLine(e)}</p>
+    <div class="selfcare"><p class="eyebrow">${T('notes')}</p><p class="quote">${e.notes ? esc(e.notes) : T('flowerDayNoNote')}</p></div>
+    <button class="btn ghost big" data-action="open-flower-day" data-date="${date}">${T('openThisDay')}</button>
     <button class="btn primary big" data-action="close-modal">${T('lovely')}</button>
   </div>`;
   $modal.hidden = false;
@@ -900,6 +928,7 @@ const actions = {
   },
   'finish-onboarding': async () => {
     state.profile.name = document.getElementById('ob-name').value.trim();
+    state.profile.gardenName = document.getElementById('ob-garden-name').value.trim();
     state.settings.reminderTime = document.getElementById('ob-time').value || '20:00';
     state.profile.onboarded = true;
     if ((await reminders.askPermission()) === 'granted') state.settings.reminderOn = true;
@@ -936,6 +965,12 @@ const actions = {
   },
   'calendar-file': () => download('clary-reminder.ics', reminders.calendarFile(state.settings.reminderTime, lang()), 'text/calendar'),
   'export-csv': () => download(`clary-${today()}.csv`, toCsv(state.entries, labelOf, lang()), 'text/csv'),
+  'show-flower-day': (el) => showFlowerDay(el.dataset.flowerDate),
+  'open-flower-day': (el) => { actions['close-modal'](); openCheckin(el.dataset.date); },
+  'save-garden-photo': () => {
+    const svg = document.querySelector('.garden');
+    if (svg) downloadSvgAsPng(`clary-garden-${today()}.png`, svg).catch(() => alert(T('savePhotoError')));
+  },
   backup: () => {
     download(`clary-backup-${today()}.json`, JSON.stringify(state, null, 2), 'application/json');
     state.lastBackupAt = Date.now();

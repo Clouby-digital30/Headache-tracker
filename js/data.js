@@ -249,17 +249,33 @@ export const MILESTONES = [
   { at: 180, title: { en: 'Half a year', nl: 'Een half jaar' },
     text: { en: 'Six months of insight. Peonies are in bloom.', nl: 'Zes maanden aan inzicht. De pioenrozen bloeien.' } },
   { at: 365, title: { en: 'A full year', nl: 'Een heel jaar' },
-    text: { en: 'Every season, recorded. This garden is all yours.', nl: 'Elk seizoen vastgelegd. Deze tuin is helemaal van jou.' } },
+    text: {
+      en: 'Every season, recorded. A protea has bloomed, and your tree has taken root: this garden is all yours.',
+      nl: 'Elk seizoen vastgelegd. Er is een protea opengebloeid, en je boom heeft wortel geschoten: deze tuin is helemaal van jou.',
+    } },
 ];
 
-// Flower species and the check-in count that unlocks each one.
+// Flower species and the check-in count that unlocks each one. `meaning` is
+// shown only for species chosen specifically for what they symbolise.
 export const SPECIES = [
   { id: 'daisy', name: { en: 'daisy', nl: 'madeliefje' }, at: 1 },
   { id: 'poppy', name: { en: 'poppy', nl: 'klaproos' }, at: 7 },
   { id: 'lavender', name: { en: 'lavender sprig', nl: 'lavendeltakje' }, at: 30 },
   { id: 'tulip', name: { en: 'tulip', nl: 'tulp' }, at: 60 },
   { id: 'peony', name: { en: 'peony', nl: 'pioenroos' }, at: 180 },
+  {
+    id: 'protea', name: { en: 'protea', nl: 'protea' }, at: 365,
+    meaning: {
+      en: 'Proteas bloom most strongly after fire. A fitting flower for change.',
+      nl: 'Protea’s bloeien het mooist na een vuur. Een passende bloem voor verandering.',
+    },
+  },
 ];
+
+// Decorative extras layered into the garden once it holds this many flowers,
+// never tied to a single check-in the way species are.
+export const BUTTERFLY_MILESTONES = [100, 365];
+export const TREE_MILESTONE = 365;
 
 export const CARDS = {
   en: [

@@ -291,6 +291,16 @@ const UI = {
   flowers: { en: 'Flowers', nl: 'Bloemen' },
   atCount: { en: 'at {n}', nl: 'bij {n}' },
   milestones: { en: 'Milestones', nl: 'Mijlpalen' },
+  gardenNameQuestion: { en: 'Give your garden a name?', nl: 'Geef je tuin een naam?' },
+  gardenNamePlaceholder: { en: 'e.g. My garden', nl: 'bijv. Mijn tuin' },
+  gardenNameSetting: { en: 'Garden name', nl: 'Naam van je tuin' },
+  flowerDayTitle: { en: 'This flower', nl: 'Deze bloem' },
+  flowerDayNoNote: { en: 'No note was written that day.', nl: 'Die dag is geen notitie geschreven.' },
+  openThisDay: { en: 'Open this day', nl: 'Open deze dag' },
+  saveGardenPhoto: { en: 'Save garden photo', nl: 'Bewaar tuinfoto' },
+  savePhotoError: { en: 'Could not save the photo. Please try again.', nl: 'Kon de foto niet bewaren. Probeer het opnieuw.' },
+  tapAFlower: { en: 'Tap a flower to look back on that day.', nl: 'Tik op een bloem om die dag terug te zien.' },
+  gardenEmpty: { en: 'Your first flower is waiting for today’s check-in', nl: 'Je eerste bloem wacht op de check-in van vandaag' },
 
   // settings
   settings: { en: 'Settings', nl: 'Instellingen' },
