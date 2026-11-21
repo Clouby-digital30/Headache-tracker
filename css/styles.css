@@ -224,6 +224,11 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .field { display: block; margin-top: 20px; }
 .field:first-child { margin-top: 0; }
 .field > span { display: block; font-weight: 600; margin-bottom: 10px; }
+.link-inline {
+  display: block; margin-top: 10px; padding: 4px 0; min-height: 32px;
+  background: none; border: 0; color: var(--sage-deep); font-weight: 600;
+  font-size: .9rem; text-decoration: underline; text-align: left;
+}
 .field em { font-weight: 400; font-style: normal; color: var(--ink-soft); }
 .sub { margin-top: 20px; padding-top: 20px; border-top: 1px solid var(--line); }
 

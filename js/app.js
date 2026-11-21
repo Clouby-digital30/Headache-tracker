@@ -27,6 +27,7 @@ const ui = {
   reward: null,
   showLibrary: false,
   licenseBusy: false, licenseMsg: null, licenseKeyDraft: '', paywallReturnDate: null, installReturnView: 'today',
+  idm: null, // [bool|null, bool|null, bool|null] while the ID Migraine helper is open
 };
 // Re-confirm a stored license in the background; re-render if its status changed.
 revalidate(state).then(() => { save(state); if (ui.view !== 'checkin') render(true); }).catch(() => {});
@@ -265,7 +266,8 @@ function viewCheckin() {
       <label class="field"><span>${T('howStrongWorst')} <output id="intensity-out">${h.intensity}</output>/10</span>
         <input type="range" min="1" max="10" step="1" value="${h.intensity}" data-field="headache.intensity" data-num="1" aria-label="${T('intensityAria')}">
         <div class="scale-ends"><span>${T('mild')}</span><span>${T('unbearable')}</span></div></label>
-      <div class="field"><span>${T('whatKind')}</span>${chips('headache.type', L(HEADACHE_TYPES), h.type, false)}</div>
+      <div class="field"><span>${T('whatKind')}</span>${chips('headache.type', L(HEADACHE_TYPES), h.type, false)}
+        <button type="button" class="link-inline" data-action="open-idm">${T('idmLinkText')}</button></div>
       <div class="field"><span>${T('howDidItStart')}</span>${chips('headache.onset', L(ONSET), h.onset, false)}</div>
       ${h.onset === 'sudden' ? `<p class="hint warning">${T('suddenOnsetWarning')}</p>` : ''}
     </div>` : '';
@@ -732,6 +734,33 @@ function showReward(date) {
   $modal.querySelector('button').focus();
 }
 
+// The ID Migraine screener: 3 validated yes/no questions. Never auto-fills
+// the type - the person taps to accept a suggestion themselves.
+const IDM_QUESTIONS = ['idmQ1', 'idmQ2', 'idmQ3'];
+
+function renderIdm() {
+  const answered = ui.idm.filter((a) => a !== null).length;
+  const yesCount = ui.idm.filter((a) => a === true).length;
+  const idmChip = (i, value, label) => {
+    const on = ui.idm[i] === value;
+    return `<button type="button" class="chip${on ? ' on' : ''}" aria-pressed="${on}" data-action="idm-answer" data-i="${i}" data-value="${value}">${label}</button>`;
+  };
+  const questions = IDM_QUESTIONS.map((key, i) => `
+    <div class="field"><span>${T(key)}</span><div class="chips">${idmChip(i, true, T('yes'))}${idmChip(i, false, T('no'))}</div></div>`).join('');
+  const result = answered === 3
+    ? `<div class="selfcare"><p>${T(yesCount >= 2 ? 'idmResultHigh' : 'idmResultLow', { n: yesCount })}</p></div>
+       ${yesCount >= 2 ? `<button class="btn primary big" data-action="idm-select-migraine">${T('idmSelectMigraine')}</button>` : ''}`
+    : '';
+  $modal.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="idm-title">
+    <h2 id="idm-title">${T('idmTitle')}</h2>
+    <p class="fine">${T('idmIntro')}</p>
+    ${questions}
+    ${result}
+    <button class="btn ghost big" data-action="close-modal">${T('idmClose')}</button>
+  </div>`;
+  $modal.hidden = false;
+}
+
 // A tap on any flower in the full garden view: which day it was, and what
 // was logged that day, with a note if one was written.
 function showFlowerDay(date) {
@@ -851,7 +880,17 @@ const actions = {
     go(date === today() ? 'today' : 'calendar');
     if (wasNew) showReward(date);
   },
-  'close-modal': () => { $modal.hidden = true; $modal.innerHTML = ''; },
+  'close-modal': () => { $modal.hidden = true; $modal.innerHTML = ''; ui.idm = null; },
+  'open-idm': () => { ui.idm = [null, null, null]; renderIdm(); },
+  'idm-answer': (el) => {
+    ui.idm[Number(el.dataset.i)] = el.dataset.value === 'true';
+    renderIdm();
+  },
+  'idm-select-migraine': () => {
+    ui.draft.headache.type = 'migraine';
+    actions['close-modal']();
+    render(true);
+  },
   'close-paywall': () => { ui.licenseMsg = null; go('today'); },
   'open-install': () => { ui.installReturnView = ui.view === 'install' ? 'settings' : ui.view; go('install'); },
   'install-continue': () => {

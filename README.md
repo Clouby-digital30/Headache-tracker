@@ -36,6 +36,9 @@ stored on the user's own device.
 - **Install guide**: step-by-step per platform (a real one-tap button on Android/Chrome when the
   browser offers it, manual steps for iPhone), reachable from Settings and shown automatically
   right after a license activates.
+- **"Could this be migraine?"**: next to "What kind?", a link opens ID Migraine, a validated
+  3-question screener (light sensitivity, disability, nausea). It never diagnoses or auto-fills
+  anything; it only suggests, and the user taps to accept a migraine label herself.
 - **Quick menopause check**: hot flashes, night sweats, trouble sleeping and mood swings are asked
   in the main check-in (not only under "More detail"), so they get logged often enough to say
   something meaningful; the full symptom list is still there for more detail.
