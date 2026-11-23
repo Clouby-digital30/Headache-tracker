@@ -53,6 +53,18 @@ stored on the user's own device.
   limit coincidental results from the many factors tracked (the Insights screen in the app still
   shows earlier, clearly-labelled weaker signals). The report also notes how many weeks of
   tracking exist so far, since doctors generally find about 8 weeks most useful.
+- **Your chosen menopause symptoms, always answered**: pick up to 3 symptoms that matter most to
+  you in Settings; they always get their own card in Insights and the doctor report, even when no
+  clear link has been found yet, instead of silently dropping out because they didn't clear the
+  general pattern threshold.
+- **Severity per menopause symptom**: light, moderate or severe, recorded alongside each symptom
+  you log, and averaged in the doctor report (older entries without it default to moderate).
+- **Combinations of two factors**: once there are about 8 weeks of data, Clary also checks whether
+  pairs of your strongest individual patterns (for example night sweats and poor sleep) go with
+  more headaches together than either does alone, shown in Insights and the report.
+- **Pattern cards now say more**: when a factor is tied to more headaches, Clary also checks
+  whether those headaches were more often migraine specifically, and more intense, using the same
+  days already compared (no extra false-positive risk).
 - **A more personal garden**: name your garden (onboarding or Settings); the sky shows the real
   current season and a small moon-phase badge; a protea blooms at a year ("blooms most strongly
   after fire" - a symbol of change) alongside butterflies and, at a year, a tree that stays; tap

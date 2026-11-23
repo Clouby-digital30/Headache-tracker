@@ -47,7 +47,9 @@ const SAME_DAY_ONLY = new Set(['period', 'perimenstrual']);
  */
 export function findPatterns(entries) {
   const dates = Object.keys(entries).sort();
-  if (dates.length < MIN_DAYS) return { ready: false, needed: MIN_DAYS - dates.length, risks: [], helpers: [] };
+  if (dates.length < MIN_DAYS) {
+    return { ready: false, needed: MIN_DAYS - dates.length, risks: [], helpers: [], allById: new Map() };
+  }
 
   const peri = perimenstrualSet(entries);
   const factors = {};
@@ -62,18 +64,34 @@ export function findPatterns(entries) {
     let best = null;
     // Cycle factors already describe a window of days, so only compare the same day.
     for (const lag of SAME_DAY_ONLY.has(id) ? [0] : [0, 1, 2]) {
-      let w = 0, wh = 0, o = 0, oh = 0;
+      let w = 0, wh = 0, o = 0, oh = 0, wMig = 0, oMig = 0, wIntensitySum = 0, oIntensitySum = 0;
       for (const d of dates) {
         const target = entries[addDays(d, lag)];
         if (!target) continue;
-        if (factors[d].has(id)) { w++; if (hadHeadache(target)) wh++; }
-        else { o++; if (hadHeadache(target)) oh++; }
+        const hh = hadHeadache(target);
+        const intensity = hh ? Number(target.headache.intensity) || 0 : 0;
+        const migraine = hh && target.headache.type === 'migraine';
+        if (factors[d].has(id)) {
+          w++;
+          if (hh) { wh++; wIntensitySum += intensity; if (migraine) wMig++; }
+        } else {
+          o++;
+          if (hh) { oh++; oIntensitySum += intensity; if (migraine) oMig++; }
+        }
       }
       if (w < MIN_WITH || o < MIN_WITHOUT) continue;
       const withRate = wh / w, withoutRate = oh / o;
       const diff = withRate - withoutRate;
       if (!best || Math.abs(diff) > Math.abs(best.diff)) {
-        best = { id, lag, withRate, withoutRate, diff, days: w, strong: w >= 8 };
+        best = {
+          id, lag, withRate, withoutRate, diff, days: w, strong: w >= 8,
+          // Descriptive extras about the *same* days already compared above,
+          // not a separate test - so they add no further false-positive risk.
+          migraineRateWith: wh ? wMig / wh : 0,
+          migraineRateWithout: oh ? oMig / oh : 0,
+          avgIntensityWith: wh ? wIntensitySum / wh : 0,
+          avgIntensityWithout: oh ? oIntensitySum / oh : 0,
+        };
       }
     }
     if (best) results.push(best);
@@ -85,7 +103,55 @@ export function findPatterns(entries) {
   const helpers = results
     .filter((r) => r.diff <= -0.15 && r.withRate <= 0.6 * r.withoutRate)
     .sort((a, b) => a.diff - b.diff);
-  return { ready: true, needed: 0, risks, helpers };
+  // Every factor's best lag, whether or not it cleared the risk/helper
+  // threshold - lets a factor the user cares about always be looked up,
+  // even to honestly say "no clear link yet".
+  const allById = new Map(results.map((r) => [r.id, r]));
+  return { ready: true, needed: 0, risks, helpers, allById };
+}
+
+const COMBO_MIN_DAYS_TOTAL = 56; // about 8 weeks, per the extra false-positive risk of testing pairs
+const COMBO_MIN_BOTH = 8; // the stricter "consistent pattern" threshold, not the lighter single-factor one
+const COMBO_DIFF = 0.15;
+
+/**
+ * Whether two factors occurring *together* associate with headaches more
+ * than either does alone - e.g. night sweats and poor sleep. Only tests
+ * pairs drawn from `candidateIds`, which the caller should restrict to
+ * factors that already individually qualified as a risk: testing every
+ * possible pair would multiply the chance of a coincidental result far more
+ * than testing single factors already does.
+ */
+export function findCombinations(entries, candidateIds) {
+  const dates = Object.keys(entries).sort();
+  if (dates.length < COMBO_MIN_DAYS_TOTAL || candidateIds.length < 2) return [];
+  const peri = perimenstrualSet(entries);
+  const factors = {};
+  for (const d of dates) factors[d] = dayFactors(entries, d, peri);
+
+  const results = [];
+  for (let i = 0; i < candidateIds.length; i++) {
+    for (let j = i + 1; j < candidateIds.length; j++) {
+      const a = candidateIds[i], b = candidateIds[j];
+      let both = 0, bothH = 0, aOnly = 0, aOnlyH = 0, bOnly = 0, bOnlyH = 0, neither = 0, neitherH = 0;
+      for (const d of dates) {
+        const hasA = factors[d].has(a), hasB = factors[d].has(b);
+        const hh = hadHeadache(entries[d]);
+        if (hasA && hasB) { both++; if (hh) bothH++; } else if (hasA) { aOnly++; if (hh) aOnlyH++; }
+        else if (hasB) { bOnly++; if (hh) bOnlyH++; } else { neither++; if (hh) neitherH++; }
+      }
+      if (both < COMBO_MIN_BOTH) continue;
+      const bothRate = bothH / both;
+      const aOnlyRate = aOnly ? aOnlyH / aOnly : 0;
+      const bOnlyRate = bOnly ? bOnlyH / bOnly : 0;
+      const neitherRate = neither ? neitherH / neither : 0;
+      const higherAlone = Math.max(aOnlyRate, bOnlyRate);
+      if (bothRate - higherAlone >= COMBO_DIFF) {
+        results.push({ a, b, bothRate, aOnlyRate, bOnlyRate, neitherRate, days: both });
+      }
+    }
+  }
+  return results.sort((x, y) => y.bothRate - x.bothRate);
 }
 
 const PATTERN_SENTENCE = {
@@ -104,6 +170,48 @@ const PATTERN_SENTENCE = {
 export function describePattern(p, label, lang = 'en') {
   const sentence = PATTERN_SENTENCE[lang] || PATTERN_SENTENCE.en;
   return sentence(label, p.lag, Math.round(p.withRate * 100), Math.round(p.withoutRate * 100));
+}
+
+const ENRICH_MIGRAINE_DIFF = 0.15;
+const ENRICH_INTENSITY_DIFF = 1;
+
+const ENRICH_SENTENCE = {
+  en: {
+    migraine: (withPct, withoutPct) => `It was also more often migraine specifically: ${withPct}% of those headaches, compared with ${withoutPct}% otherwise.`,
+    intensity: (withVal, withoutVal) => `Those headaches tended to be more intense too: ${withVal}/10 on average, compared with ${withoutVal}/10 otherwise.`,
+  },
+  nl: {
+    migraine: (withPct, withoutPct) => `Het was ook vaker specifiek migraine: ${withPct}% van die hoofdpijndagen, tegenover ${withoutPct}% op andere dagen.`,
+    intensity: (withVal, withoutVal) => `Die hoofdpijn was dan ook vaak heftiger: gemiddeld ${withVal}/10, tegenover ${withoutVal}/10 op andere dagen.`,
+  },
+};
+
+// Extra sentences about a pattern already found by findPatterns - describing
+// the same with/without days more fully (migraine specifically, intensity),
+// not a new test, so it carries no extra coincidence risk of its own.
+export function describeEnrichment(p, lang = 'en') {
+  const s = ENRICH_SENTENCE[lang] || ENRICH_SENTENCE.en;
+  const out = [];
+  if (p.migraineRateWith - p.migraineRateWithout >= ENRICH_MIGRAINE_DIFF) {
+    out.push(s.migraine(Math.round(p.migraineRateWith * 100), Math.round(p.migraineRateWithout * 100)));
+  }
+  if (p.avgIntensityWith - p.avgIntensityWithout >= ENRICH_INTENSITY_DIFF) {
+    out.push(s.intensity(p.avgIntensityWith.toFixed(1), p.avgIntensityWithout.toFixed(1)));
+  }
+  return out;
+}
+
+const COMBO_SENTENCE = {
+  en: (labelA, labelB, bothPct, alonePct) =>
+    `On days with both ${labelA} and ${labelB}, you had a headache ${bothPct}% of the time, higher than with just one of the two (${alonePct}%).`,
+  nl: (labelA, labelB, bothPct, alonePct) =>
+    `Op dagen met zowel ${labelA} als ${labelB} had je ${bothPct}% van de keren hoofdpijn, hoger dan met maar één van de twee (${alonePct}%).`,
+};
+
+export function describeCombination(c, labelA, labelB, lang = 'en') {
+  const sentence = COMBO_SENTENCE[lang] || COMBO_SENTENCE.en;
+  const alonePct = Math.round(Math.max(c.aOnlyRate, c.bOnlyRate) * 100);
+  return sentence(labelA, labelB, Math.round(c.bothRate * 100), alonePct);
 }
 
 // Totals for a date range (inclusive).
@@ -288,19 +396,26 @@ export function cycleInsight(entries, todayStr) {
 }
 
 // HRT days and how often each menopause symptom was logged, over a range -
-// the detail a doctor report needs that a trigger-focused summary doesn't give.
+// the detail a doctor report needs that a trigger-focused summary doesn't
+// give. avgSeverity is 1 (light) to 3 (severe); entries saved before severity
+// existed default to 2 (moderate) rather than being left out.
 export function menoSymptomCounts(entries, from, to) {
-  const counts = new Map();
+  const counts = new Map(); // id -> { count, severitySum }
   let days = 0, hrtDays = 0;
   for (const d of Object.keys(entries)) {
     if (d < from || d > to) continue;
     days++;
     const e = entries[d];
     if (e.hrt) hrtDays++;
-    for (const m of e.meno || []) counts.set(m, (counts.get(m) || 0) + 1);
+    for (const m of e.meno || []) {
+      const entry = counts.get(m) || { count: 0, severitySum: 0 };
+      entry.count++;
+      entry.severitySum += (e.menoSeverity && e.menoSeverity[m]) || 2;
+      counts.set(m, entry);
+    }
   }
   const items = [...counts.entries()]
-    .map(([id, count]) => ({ id, count }))
+    .map(([id, v]) => ({ id, count: v.count, avgSeverity: v.severitySum / v.count }))
     .sort((a, b) => b.count - a.count || a.id.localeCompare(b.id));
   return { days, hrtDays, items };
 }

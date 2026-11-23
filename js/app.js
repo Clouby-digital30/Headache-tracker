@@ -1,13 +1,14 @@
 import {
   TRIGGER_GROUPS, PERIOD_LEVELS, HEADACHE_TYPES, DURATIONS, ONSET, LOCATIONS, HEADACHE_SYMPTOMS, IMPACT, RELIEF,
-  MENO_SYMPTOMS, QUICK_MENO_SYMPTOMS, STAGES, DERIVED_LABELS, MILESTONES, SPECIES, CARDS,
+  MENO_SYMPTOMS, QUICK_MENO_SYMPTOMS, SEVERITY, STAGES, DERIVED_LABELS, MILESTONES, SPECIES, CARDS,
 } from './data.js';
 import {
   load, save, today, addDays, parseDate, toDateStr, emptyEntry, streaks, defaultState, normalize, backupDue,
   swapDefaultMeds,
 } from './store.js';
 import {
-  findPatterns, describePattern, summarize, monthly, byWeekday, medDaysLast30, medOveruse, cycleInsight, mostLogged,
+  findPatterns, describePattern, describeEnrichment, describeCombination, findCombinations, summarize, monthly,
+  byWeekday, medDaysLast30, medOveruse, cycleInsight, mostLogged,
   medOveruseByClass, medClassByMonth, menstrualMigraineStat, menoSymptomCounts, trackingSpanWeeks,
 } from './insights.js';
 import { gardenScene, flower, speciesFor } from './garden.js';
@@ -73,6 +74,9 @@ const factorPhrase = (id) => {
   return d ? (d[lang()] || d.en) : `“${labelOf(id)}”`;
 };
 
+const SEVERITY_LABELS = new Map(SEVERITY);
+const severityLabel = (n) => { const l = SEVERITY_LABELS.get(Math.round(n)); return l ? (l[lang()] || l.en) : ''; };
+
 const niceDate = (str, opts = { weekday: 'long', day: 'numeric', month: 'long' }) => parseDate(str).toLocaleDateString(locale(), opts);
 // A known Monday, used only to turn a weekday index (0=Mon..6=Sun) into a
 // locale-correct short name; the actual date is irrelevant.
@@ -103,6 +107,23 @@ function chips(field, options, selected, multi) {
 }
 // Like chips(), but for a [id, {en, nl}] option list from data.js.
 const L = (list) => list.map(([id, label]) => [id, label[lang()] || label.en]);
+
+// A small severity picker (light/moderate/severe) for one logged menopause
+// symptom. Defaults to moderate when nothing has been picked yet, matching
+// how old entries without a severity are read in insights.js.
+function severityPicker(d, id) {
+  const val = (d.menoSeverity && d.menoSeverity[id]) || 2;
+  return `<div class="chips sm">${SEVERITY.map(([n, label]) =>
+    `<button type="button" class="chip sm${val === n ? ' on' : ''}" aria-pressed="${val === n}"
+      data-action="pick" data-field="menoSeverity.${id}" data-value="${n}" data-num="1">${esc(label[lang()] || label.en)}</button>`).join('')}</div>`;
+}
+
+// One severity picker per currently-logged menopause symptom, however it was
+// selected (quick list or full list) - they share the same underlying array.
+function menoSeverityFields(d) {
+  if (!d.meno.length) return '';
+  return d.meno.map((id) => `<div class="field tight"><span class="small-label">${esc(labelOf(id))} - ${T('menoSeverityLabel')}</span>${severityPicker(d, id)}</div>`).join('');
+}
 
 function scale(field, value, low, high) {
   return `<div class="scale">
@@ -313,6 +334,7 @@ function viewCheckin() {
     ${s.trackMeno ? `<div class="card">
       <h3>${T('quickMenoLabel')}</h3>
       ${chips('meno', L(MENO_SYMPTOMS.filter(([id]) => QUICK_MENO_SYMPTOMS.includes(id))), d.meno, true)}
+      ${menoSeverityFields(d)}
     </div>` : ''}
     <div class="card">
       <h3>${T('stress')}</h3>${scale('stress', d.stress, T('calm'), T('veryStressed'))}
@@ -389,10 +411,34 @@ function rangeBounds() {
 }
 
 function patternCard(p) {
+  const extra = describeEnrichment(p, lang());
   return `<div class="pattern">
     <p>${esc(describePattern(p, factorPhrase(p.id), lang()))}</p>
+    ${extra.map((x) => `<p class="hint">${esc(x)}</p>`).join('')}
     ${compareBars(p.withRate, p.withoutRate, T('withLabel'), T('withoutLabel'))}
     <p class="meta">${T(p.strong ? 'consistentPattern' : 'earlySignal')} · ${T('basedOnDays', { n: p.days })}</p>
+  </div>`;
+}
+
+// A favourite menopause symptom always gets its own card in Insights and the
+// report - even without a found pattern, since the honest answer ("no clear
+// link yet") is itself useful to a user who picked this symptom as important.
+function favoriteCard(pat, id) {
+  const label = labelOf(id);
+  if (!pat.ready) {
+    return `<div class="pattern favorite"><p class="eyebrow">${esc(label)}</p><p>${T('favoriteNeedsTime')}</p></div>`;
+  }
+  const p = pat.allById.get(id);
+  const isPattern = p && (pat.risks.some((r) => r.id === id) || pat.helpers.some((r) => r.id === id));
+  if (isPattern) return patternCard(p);
+  if (p) return `<div class="pattern favorite"><p class="eyebrow">${esc(label)}</p><p>${T('favoriteNoLinkYet', { n: p.days })}</p></div>`;
+  return `<div class="pattern favorite"><p class="eyebrow">${esc(label)}</p><p>${T('favoriteNotLoggedYet')}</p></div>`;
+}
+
+function comboCard(c) {
+  return `<div class="pattern">
+    <p>${esc(describeCombination(c, factorPhrase(c.a), factorPhrase(c.b), lang()))}</p>
+    <p class="meta">${T('basedOnDays', { n: c.days })}</p>
   </div>`;
 }
 
@@ -415,6 +461,16 @@ function viewInsights() {
 
   const helpers = pat.ready && pat.helpers.length
     ? `<div class="card"><h2>${T('fewerHeadaches')}</h2>${pat.helpers.slice(0, 4).map(patternCard).join('')}</div>`
+    : '';
+
+  const favoriteMeno = state.settings.trackMeno ? state.settings.favoriteMeno : [];
+  const favoritesCard = favoriteMeno.length
+    ? `<div class="card"><h2>${T('yourTopConcerns')}</h2>${favoriteMeno.map((id) => favoriteCard(pat, id)).join('')}</div>`
+    : '';
+
+  const combos = pat.ready ? findCombinations(state.entries, pat.risks.map((r) => r.id)) : [];
+  const combosCard = combos.length
+    ? `<div class="card"><h2>${T('combinedFactors')}</h2><p class="hint">${T('combinedFactorsExplain')}</p>${combos.slice(0, 4).map(comboCard).join('')}</div>`
     : '';
 
   const mostLoggedCard = logged.items.length
@@ -455,6 +511,8 @@ function viewInsights() {
       ${patterns}
     </div>
     ${helpers}
+    ${favoritesCard}
+    ${combosCard}
     ${mostLoggedCard}
     <div class="card"><h2>${T('takeItWithYou')}</h2>
       <p class="hint">${T('reportOrSpreadsheet')}</p>
@@ -471,6 +529,8 @@ function viewReport() {
   const s = summarize(state.entries, from, to);
   const pat = findPatterns(state.entries);
   const strongRisks = pat.ready ? pat.risks.filter((p) => p.strong) : [];
+  const combos = pat.ready ? findCombinations(state.entries, pat.risks.map((r) => r.id)) : [];
+  const favoriteMeno = state.settings.trackMeno ? state.settings.favoriteMeno : [];
   const months = monthly(state.entries, 12, to).filter((m) => m.logged > 0);
   const weeks = trackingSpanWeeks(state.entries, to);
   const rows = Object.keys(state.entries).sort().filter((d) => d >= from && d <= to && state.entries[d].headache.had).map((d) => {
@@ -525,15 +585,35 @@ function viewReport() {
       ${meno ? `<p>${T('reportHrtDays')}: ${meno.hrtDays}</p>
         <p>${T('reportMenoSymptomsIntro')}</p>
         ${meno.items.length
-    ? `<ul>${meno.items.map((i) => `<li>${esc(labelOf(i.id))}: ${i.count}</li>`).join('')}</ul>`
+    ? `<ul>${meno.items.map((i) => `<li>${esc(labelOf(i.id))}: ${i.count} (${T('reportAvgSeverity', { sev: i.avgSeverity.toFixed(1) })})</li>`).join('')}</ul>`
     : `<p>${T('reportNoMenoSymptoms')}</p>`}` : ''}
       ${migraineStat && migraineStat.checked > 0 ? `<p>${T('reportMenstrualMigraine', { withN: migraineStat.withMigraine, checked: migraineStat.checked })}</p>` : ''}
       <p>${T('reportAvgSleepStress', { sleep: s.avgSleep ? s.avgSleep.toFixed(1) : '–', stress: s.avgStress ? s.avgStress.toFixed(1) : '–' })}</p>` : ''}
       <h3>${T('observedPatterns')}</h3>
       <p class="fine">${T('patternsCaution')}</p>
       ${strongRisks.length
-    ? `<ul>${strongRisks.slice(0, 8).map((p) => `<li>${esc(describePattern(p, factorPhrase(p.id), lang()))} ${T('daysSuffix', { n: p.days })}</li>`).join('')}</ul>`
+    ? `<ul>${strongRisks.slice(0, 8).map((p) => {
+      const extra = describeEnrichment(p, lang());
+      return `<li>${esc(describePattern(p, factorPhrase(p.id), lang()))} ${T('daysSuffix', { n: p.days })}${extra.length ? ` ${extra.map(esc).join(' ')}` : ''}</li>`;
+    }).join('')}</ul>`
     : `<p>${T('noStrongPatternsYet')}</p>`}
+      ${favoriteMeno.length ? `
+      <h3>${T('reportTopConcernsTitle')}</h3>
+      <ul>${favoriteMeno.map((id) => {
+      const label = labelOf(id);
+      const p = pat.ready ? pat.allById.get(id) : null;
+      const isPattern = p && (pat.risks.some((r) => r.id === id) || pat.helpers.some((r) => r.id === id));
+      if (isPattern) {
+        const extra = describeEnrichment(p, lang());
+        return `<li>${esc(describePattern(p, factorPhrase(id), lang()))} ${T('daysSuffix', { n: p.days })}${extra.length ? ` ${extra.map(esc).join(' ')}` : ''}</li>`;
+      }
+      if (!pat.ready) return `<li>${esc(label)}: ${T('favoriteNeedsTime')}</li>`;
+      if (p) return `<li>${esc(label)}: ${T('favoriteNoLinkYet', { n: p.days })}</li>`;
+      return `<li>${esc(label)}: ${T('favoriteNotLoggedYet')}</li>`;
+    }).join('')}</ul>` : ''}
+      ${combos.length ? `
+      <h3>${T('reportCombinedFactorsTitle')}</h3>
+      <ul>${combos.slice(0, 4).map((c) => `<li>${esc(describeCombination(c, factorPhrase(c.a), factorPhrase(c.b), lang()))} ${T('daysSuffix', { n: c.days })}</li>`).join('')}</ul>` : ''}
       <h3>${T('headacheLog')}</h3>
       ${rows ? `<table class="log"><tr><th>${T('colDate')}</th><th>${T('colIntensity')}</th><th>${T('colType')}</th><th>${T('colOnset')}</th><th>${T('colDuration')}</th><th>${T('colSymptoms')}</th><th>${T('colMedication')}</th><th>${T('colPeriod')}</th><th>${T('colLoggedFactors')}</th></tr>${rows}</table>` : `<p>${T('noHeadachesRecorded')}</p>`}
       <p class="fine">${T('reportDisclaimer')}</p>
@@ -664,6 +744,14 @@ function viewSettings() {
       <div class="field"><span>${T('cycle')}</span>${toSetting(chips('profile.stage', L(STAGES), p.stage, false))}</div>
       <div class="field"><span>${T('hrtSetting')}</span>${toSetting(chips('settings.usesHrt', [['yes', T('yes')], ['no', T('no')]], s.usesHrt ? 'yes' : 'no', false))}</div>
       <div class="field"><span>${T('trackMenoSetting')}</span>${toSetting(chips('settings.trackMeno', [['yes', T('yes')], ['no', T('no')]], s.trackMeno ? 'yes' : 'no', false))}</div>
+      ${s.trackMeno ? `<div class="field"><span>${T('favoriteMenoSetting')}</span>
+        <p class="hint">${T('favoriteMenoHint')}</p>
+        <div class="chips">${L(MENO_SYMPTOMS).map(([id, label]) => {
+    const on = s.favoriteMeno.includes(id);
+    const full = !on && s.favoriteMeno.length >= 3;
+    return `<button type="button" class="chip${on ? ' on' : ''}" aria-pressed="${on}" ${full ? 'disabled' : ''}
+      data-action="toggle-favorite-meno" data-id="${esc(id)}">${esc(label)}</button>`;
+  }).join('')}</div></div>` : ''}
     </div>
     <div class="card"><h2>${T('dailyReminder')}</h2>
       <div class="field"><span>${T('remindEveryDay')}</span>${toSetting(chips('settings.reminderOn', [['yes', T('on')], ['no', T('off')]], s.reminderOn ? 'yes' : 'no', false))}</div>
@@ -849,7 +937,7 @@ function applyPick(target, el) {
     // tapping a selected single choice clears it, except for a handful of
     // settings that must always have some value.
     const current = getPath(target, field);
-    const clearable = !BOOL_FIELDS.has(field) && !SINGLE_CHOICE_STICKY.has(field);
+    const clearable = !BOOL_FIELDS.has(field) && !SINGLE_CHOICE_STICKY.has(field) && !field.startsWith('menoSeverity.');
     setPath(target, field, clearable && current === value ? (el.dataset.num ? 0 : '') : value);
   }
   return field;
@@ -976,6 +1064,14 @@ const actions = {
     go('today');
   },
   'toggle-library': () => { ui.showLibrary = !ui.showLibrary; render(true); },
+  'toggle-favorite-meno': (el) => {
+    const id = el.dataset.id;
+    const list = state.settings.favoriteMeno;
+    const i = list.indexOf(id);
+    if (i >= 0) list.splice(i, 1);
+    else if (list.length < 3) list.push(id);
+    commit(); render(true);
+  },
   'add-custom': () => {
     const label = document.getElementById('new-trigger').value.trim();
     if (!label) return;

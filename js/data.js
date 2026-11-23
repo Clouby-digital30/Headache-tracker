@@ -196,6 +196,13 @@ export const QUICK_MENO_SYMPTOMS = ['hot_flash', 'night_sweats', 'insomnia', 'mo
 // split: triptans are flagged from 10 days/month, simple analgesics from 15.
 export const TRIPTAN_RE = /tript/i; // matches "Triptan", Dutch "Triptaan", and named ones like "Sumatriptan"
 
+// Severity for a logged menopause symptom: 1 (light) to 3 (severe).
+export const SEVERITY = [
+  [1, { en: 'Light', nl: 'Licht' }],
+  [2, { en: 'Moderate', nl: 'Matig' }],
+  [3, { en: 'Severe', nl: 'Hevig' }],
+];
+
 export const MENO_SYMPTOMS = [
   ['hot_flash', { en: 'Hot flashes', nl: 'Opvliegers' }],
   ['night_sweats', { en: 'Night sweats', nl: 'Nachtzweten' }],
