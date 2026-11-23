@@ -2,7 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { addDays, emptyEntry } from '../js/store.js';
 import {
-  findPatterns, describePattern, periodStarts, summarize, monthly, cycleInsight, mostLogged, medOveruse,
+  findPatterns, describePattern, describeEnrichment, describeCombination, findCombinations,
+  periodStarts, summarize, monthly, cycleInsight, mostLogged, medOveruse,
   perimenstrualSet, medClassSummary, medOveruseByClass, medClassByMonth, menstrualMigraineStat,
   menoSymptomCounts, trackingSpanWeeks,
 } from '../js/insights.js';
@@ -218,11 +219,90 @@ test('counts HRT days and menopause symptoms separately from triggers', () => {
   const r = menoSymptomCounts(entries, '2026-01-01', addDays('2026-01-01', 9));
   assert.equal(r.days, 10);
   assert.equal(r.hrtDays, 6);
-  assert.deepEqual(r.items, [{ id: 'hot_flash', count: 5 }]);
+  assert.equal(r.items.length, 1);
+  assert.equal(r.items[0].id, 'hot_flash');
+  assert.equal(r.items[0].count, 5);
+  assert.equal(r.items[0].avgSeverity, 2); // defaults to moderate when no severity was recorded
+});
+
+test('averages recorded menopause-symptom severity, defaulting old entries to moderate', () => {
+  const entries = build(4, (e, i) => {
+    e.meno.push('night_sweats');
+    if (i < 2) e.menoSeverity = { night_sweats: 3 }; // severe
+    // the other two entries have no menoSeverity at all - as if saved before it existed
+  });
+  const r = menoSymptomCounts(entries, '2026-01-01', addDays('2026-01-01', 3));
+  assert.equal(r.items[0].count, 4);
+  assert.equal(r.items[0].avgSeverity, (3 + 3 + 2 + 2) / 4);
 });
 
 test('tracking span is 0 with no entries and counts weeks from the first one', () => {
   assert.equal(trackingSpanWeeks({}, '2026-01-01'), 0);
   const entries = build(1, () => {}); // a single entry on 2026-01-01
   assert.equal(trackingSpanWeeks(entries, addDays('2026-01-01', 56)), 8);
+});
+
+test('findPatterns also reports migraine rate and intensity for the same days', () => {
+  const entries = build(60, (e, i) => {
+    if (i % 5 === 0) {
+      e.triggers.push('red_wine');
+      e.headache.had = true; e.headache.type = 'migraine'; e.headache.intensity = 9;
+    } else if (i % 6 === 0) {
+      e.headache.had = true; e.headache.type = 'tension'; e.headache.intensity = 4;
+    }
+  });
+  const pat = findPatterns(entries);
+  const p = pat.allById.get('red_wine');
+  assert.ok(p, 'red_wine should be in allById even though it also clears the risk threshold');
+  assert.equal(p.migraineRateWith, 1);
+  assert.equal(p.migraineRateWithout, 0);
+  assert.equal(p.avgIntensityWith, 9);
+  assert.equal(p.avgIntensityWithout, 4);
+  const extra = describeEnrichment(p, 'en');
+  assert.equal(extra.length, 2);
+  assert.match(extra[0], /more often migraine specifically: 100%/);
+  assert.match(extra[1], /more intense too: 9\.0\/10/);
+});
+
+test('allById finds a factor even when it never clears the risk threshold', () => {
+  // A trigger logged on just enough days, with no real relationship to headaches.
+  const entries = build(20, (e, i) => {
+    if (i % 3 === 0) e.triggers.push('tired');
+    e.headache.had = i % 2 === 0; // unrelated to 'tired'
+  });
+  const pat = findPatterns(entries);
+  assert.ok(!pat.risks.some((r) => r.id === 'tired'));
+  assert.ok(pat.allById.has('tired'), 'should still be looked-up-able for a favourite symptom card');
+});
+
+test('findCombinations surfaces a pair that is worse together than apart', () => {
+  const entries = build(60, (e, i) => {
+    if (i < 10) { // both triggers present
+      e.triggers.push('tired', 'busy');
+      e.headache.had = i < 9; // 9 of 10
+    } else if (i < 20) { // 'tired' only
+      e.triggers.push('tired');
+      e.headache.had = i < 13; // 3 of 10
+    } else if (i < 30) { // 'busy' only
+      e.triggers.push('busy');
+      e.headache.had = i < 23; // 3 of 10
+    } else { // neither (30 days)
+      e.headache.had = i < 33; // 3 of 30
+    }
+  });
+  const combos = findCombinations(entries, ['tired', 'busy']);
+  assert.equal(combos.length, 1);
+  const c = combos[0];
+  assert.equal(c.days, 10);
+  assert.equal(c.bothRate, 0.9);
+  assert.ok(Math.abs(c.aOnlyRate - 0.3) < 1e-9);
+  assert.ok(Math.abs(c.bOnlyRate - 0.3) < 1e-9);
+  assert.match(describeCombination(c, 'tired', 'busy', 'en'), /90% of the time, higher than with just one of the two \(30%\)/);
+});
+
+test('findCombinations needs about 8 weeks of data and at least 2 candidates', () => {
+  const short = build(30, (e, i) => { if (i < 10) { e.triggers.push('tired', 'busy'); e.headache.had = true; } });
+  assert.deepEqual(findCombinations(short, ['tired', 'busy']), []);
+  const long = build(60, () => {});
+  assert.deepEqual(findCombinations(long, ['tired']), []);
 });

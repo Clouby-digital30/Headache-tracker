@@ -196,6 +196,24 @@ const UI = {
     en: 'What you have tagged most often in this period, regardless of whether a headache followed.',
     nl: 'Wat je in deze periode het vaakst hebt aangevinkt, ongeacht of er hoofdpijn op volgde.',
   },
+  yourTopConcerns: { en: 'Your chosen symptoms', nl: 'Jouw gekozen klachten' },
+  favoriteNeedsTime: {
+    en: 'Clary needs about two weeks of check-ins before it can look for a link here.',
+    nl: 'Clary heeft ongeveer twee weken aan check-ins nodig voordat hier naar een verband gezocht kan worden.',
+  },
+  favoriteNoLinkYet: {
+    en: 'No clear link to headaches found yet ({n} days logged). That is useful to know too - Clary keeps looking.',
+    nl: 'Nog geen duidelijk verband met hoofdpijn gevonden ({n} dagen gelogd). Ook dat is waardevol om te weten - Clary blijft zoeken.',
+  },
+  favoriteNotLoggedYet: {
+    en: 'Not logged yet in this period, so there is nothing to compare.',
+    nl: 'Nog niet gelogd in deze periode, dus er is niets om te vergelijken.',
+  },
+  combinedFactors: { en: 'When two things happen together', nl: 'Wanneer twee dingen samen voorkomen' },
+  combinedFactorsExplain: {
+    en: 'Some factors seem to matter more in combination than alone. Only tested among your strongest individual patterns, and only once there is enough data, to limit coincidental results.',
+    nl: 'Sommige factoren lijken meer uit te maken in combinatie dan alleen. Dit wordt alleen getest tussen je sterkste individuele patronen, en pas als er genoeg data is, om toevalstreffers te beperken.',
+  },
   takeItWithYou: { en: 'Take it with you', nl: 'Neem het mee' },
   reportOrSpreadsheet: { en: 'A report for your doctor, or the raw data for a spreadsheet.', nl: 'Een rapport voor je arts, of de ruwe data voor een spreadsheet.' },
   doctorReportPdf: { en: 'Doctor report (PDF)', nl: 'Artsenrapport (PDF)' },
@@ -247,6 +265,9 @@ const UI = {
   reportHrtDays: { en: 'Days HRT was taken', nl: 'Dagen HRT ingenomen' },
   reportMenoSymptomsIntro: { en: 'How often each symptom was logged:', nl: 'Hoe vaak elk symptoom werd gelogd:' },
   reportNoMenoSymptoms: { en: 'No menopause symptoms logged in this period.', nl: 'Geen overgangsklachten gelogd in deze periode.' },
+  reportAvgSeverity: { en: 'average severity {sev}/3', nl: 'gemiddelde ernst {sev}/3' },
+  reportTopConcernsTitle: { en: 'Your chosen symptoms', nl: 'Jouw gekozen klachten' },
+  reportCombinedFactorsTitle: { en: 'Combinations', nl: 'Combinaties' },
   reportMenstrualMigraine: {
     en: '{withN} of the last {checked} cycles had a migraine in the perimenstrual window (2 days before to 3 days after the period started).',
     nl: '{withN} van de laatste {checked} cycli hadden migraine in het perimenstruele venster (2 dagen voor tot 3 dagen na de start van de menstruatie).',
@@ -292,6 +313,7 @@ const UI = {
   },
 
   quickMenoLabel: { en: 'Any of these today?', nl: 'Vandaag iets hiervan?' },
+  menoSeverityLabel: { en: 'How bad?', nl: 'Hoe erg?' },
   suddenOnsetWarning: {
     en: 'A headache that reaches its worst within minutes is worth telling a doctor about, especially if it is new or unusual for you. If this is the worst headache of your life, seek urgent care.',
     nl: 'Een hoofdpijn die binnen enkele minuten op zijn ergst is, is het vermelden waard bij een arts, zeker als dit nieuw of ongebruikelijk voor je is. Is dit de ergste hoofdpijn van je leven, zoek dan spoedhulp.',
@@ -334,6 +356,12 @@ const UI = {
   cycle: { en: 'Cycle', nl: 'Cyclus' },
   hrtSetting: { en: 'I use hormone therapy (HRT)', nl: 'Ik gebruik hormoontherapie (HRT)' },
   trackMenoSetting: { en: 'Track menopause symptoms', nl: 'Overgangsklachten bijhouden' },
+  favoriteMenoSetting: { en: 'Your top 3 to watch', nl: 'Jouw top 3 om te volgen' },
+  favoriteMenoHint: {
+    en: 'Pick up to 3 symptoms that matter most to you. They always get their own card in Insights and the doctor report, even before a clear link is found.',
+    nl: 'Kies tot 3 klachten die voor jou het belangrijkst zijn. Ze krijgen altijd hun eigen kaart in Inzichten en het artsenrapport, ook als er nog geen duidelijk verband is gevonden.',
+  },
+  favoriteMenoFull: { en: 'Up to 3 chosen', nl: 'Tot 3 gekozen' },
   dailyReminder: { en: 'Daily reminder', nl: 'Dagelijkse herinnering' },
   remindEveryDay: { en: 'Remind me every day', nl: 'Herinner me elke dag' },
   on: { en: 'On', nl: 'Aan' },

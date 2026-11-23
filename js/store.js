@@ -36,6 +36,7 @@ export function defaultState() {
       meds: [...DEFAULT_MEDS.en],
       usesHrt: false,
       trackMeno: true,
+      favoriteMeno: [], // up to 3 menopause-symptom ids: always get their own Insights/report card
     },
     entries: {}, // 'YYYY-MM-DD' -> entry
     seenMilestones: [],
@@ -114,6 +115,7 @@ export function emptyEntry() {
     mood: 0,
     triggers: [],
     meno: [],
+    menoSeverity: {}, // { [menoSymptomId]: 1 (light) | 2 (moderate) | 3 (severe) }
     hrt: false,
     notes: '',
   };

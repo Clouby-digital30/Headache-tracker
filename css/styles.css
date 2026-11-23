@@ -219,11 +219,16 @@ button { font: inherit; color: inherit; cursor: pointer; }
   background: var(--surface); color: var(--ink);
 }
 .chip.on { background: var(--sage-soft); border-color: var(--sage-deep); color: var(--chip-on-ink); font-weight: 600; }
+.chip:disabled { opacity: .4; }
 .chips.range { margin: 0 0 16px; }
+.chips.sm { gap: 6px; }
+.chip.sm { min-height: 36px; padding: 4px 12px; font-size: .85rem; }
 
 .field { display: block; margin-top: 20px; }
 .field:first-child { margin-top: 0; }
 .field > span { display: block; font-weight: 600; margin-bottom: 10px; }
+.field.tight { margin-top: 10px; }
+.small-label { display: block; font-size: .85rem; font-weight: 600; color: var(--ink-soft); margin-bottom: 6px; }
 .link-inline {
   display: block; margin-top: 10px; padding: 4px 0; min-height: 32px;
   background: none; border: 0; color: var(--sage-deep); font-weight: 600;
@@ -354,6 +359,7 @@ body[data-view="checkin"] main, body[data-view="report"] main { padding-bottom: 
 .pattern { padding: 16px 0; border-top: 1px solid var(--line); }
 .pattern:first-of-type { border-top: 0; }
 .pattern .meta { font-size: .82rem; color: var(--ink-soft); margin-top: 8px; }
+.pattern.favorite .eyebrow { margin-top: 4px; }
 .cmp-row { display: grid; grid-template-columns: 64px 1fr 44px; align-items: center; gap: 8px; margin-top: 6px; font-size: .85rem; color: var(--ink-soft); }
 .cmp-track { height: 12px; }
 .cmp-fill { display: block; height: 100%; border-radius: 0 4px 4px 0; }
