@@ -29,6 +29,7 @@ const ui = {
   showLibrary: false,
   licenseBusy: false, licenseMsg: null, licenseKeyDraft: '', paywallReturnDate: null, installReturnView: 'today',
   idm: null, // [bool|null, bool|null, bool|null] while the ID Migraine helper is open
+  autoInstallPending: false, // true when Clary itself navigated to the install screen, so it may also fire the native Android prompt without waiting for a tap on our own button
 };
 // Re-confirm a stored license in the background; re-render if its status changed.
 revalidate(state).then(() => { save(state); if (ui.view !== 'checkin') render(true); }).catch(() => {});
@@ -682,6 +683,25 @@ const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSSt
 const isAndroid = () => /Android/.test(navigator.userAgent);
 let deferredInstallPrompt = null;
 
+// Whether to jump straight to the install screen without being asked: only on
+// a phone (not desktop, which already has its own install affordance), not
+// already installed, and not snoozed from a recent "Continue" tap.
+function installDue(st) {
+  if (isStandalone() || (!isAndroid() && !isIOS())) return false;
+  return !st.installSnoozedUntil || Date.now() >= st.installSnoozedUntil;
+}
+
+// On Android, fire the browser's own install popup immediately once we've
+// navigated to the install screen on our own (not because the user tapped
+// "How to install" from Settings) - so opening the app is the only tap needed
+// before the native "Install app?" dialog appears.
+function maybeAutoPrompt() {
+  if (ui.view === 'install' && ui.autoInstallPending && isAndroid() && deferredInstallPrompt) {
+    ui.autoInstallPending = false;
+    actions['install-now']();
+  }
+}
+
 function viewInstall() {
   if (isStandalone()) {
     return `<header class="top with-back">
@@ -903,6 +923,7 @@ function render(keepScroll = false) {
       <span>${label}</span></button>`).join('');
   document.body.dataset.view = ui.view;
   window.scrollTo(0, keepScroll ? scroll : 0);
+  maybeAutoPrompt();
 }
 
 function go(view) { ui.view = view; render(); }
@@ -980,8 +1001,11 @@ const actions = {
     render(true);
   },
   'close-paywall': () => { ui.licenseMsg = null; go('today'); },
-  'open-install': () => { ui.installReturnView = ui.view === 'install' ? 'settings' : ui.view; go('install'); },
+  'open-install': () => { ui.installReturnView = ui.view === 'install' ? 'settings' : ui.view; ui.autoInstallPending = false; go('install'); },
   'install-continue': () => {
+    // Moving on without installing snoozes the automatic prompt for a few
+    // days, rather than showing it again on every single visit.
+    if (!isStandalone()) { state.installSnoozedUntil = Date.now() + 3 * 86400000; commit(); }
     const back = ui.paywallReturnDate;
     ui.paywallReturnDate = null;
     if (back) { openCheckin(back); return; }
@@ -1010,7 +1034,7 @@ const actions = {
       commit();
       // paywallReturnDate (if any) is kept: the install screen's Continue
       // button resumes the check-in the purchase was for.
-      if (!isStandalone()) { render(true); go('install'); return; }
+      if (!isStandalone()) { ui.autoInstallPending = true; render(true); go('install'); return; }
       const back = ui.paywallReturnDate;
       ui.paywallReturnDate = null;
       if (back) { openCheckin(back); return; }
@@ -1061,6 +1085,7 @@ const actions = {
     if ((await reminders.askPermission()) === 'granted') state.settings.reminderOn = true;
     if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
     commit();
+    if (installDue(state)) { ui.installReturnView = 'today'; ui.autoInstallPending = true; go('install'); return; }
     go('today');
   },
   'toggle-library': () => { ui.showLibrary = !ui.showLibrary; render(true); },
@@ -1201,7 +1226,12 @@ window.addEventListener('beforeinstallprompt', (e) => {
   deferredInstallPrompt = e;
   if (ui.view === 'install') render(true);
 });
-window.addEventListener('appinstalled', () => { deferredInstallPrompt = null; if (ui.view === 'install') render(true); });
+window.addEventListener('appinstalled', () => {
+  deferredInstallPrompt = null;
+  state.installSnoozedUntil = null;
+  commit();
+  if (ui.view === 'install') render(true);
+});
 
 if ('serviceWorker' in navigator) {
   navigator.serviceWorker.register('sw.js').then((reg) => {
@@ -1222,4 +1252,9 @@ if ('serviceWorker' in navigator) {
   });
 }
 
-if (location.hash === '#checkin' && state.profile.onboarded) openCheckin(today()); else render();
+// A phone that opens Clary and hasn't installed it yet goes straight to the
+// install screen - so following the link is the only tap needed before
+// Android's own "Install app?" popup (via maybeAutoPrompt) or iPhone's
+// "Add to Home Screen" steps appear.
+if (state.profile.onboarded && installDue(state)) { ui.installReturnView = 'today'; ui.view = 'install'; ui.autoInstallPending = true; }
+if (location.hash === '#checkin' && state.profile.onboarded && ui.view !== 'install') openCheckin(today()); else render();
