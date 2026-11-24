@@ -1,9 +1,9 @@
 // Service worker: offline app shell, reminder notifications.
-const CACHE = 'clary-shell-v14';
+const CACHE = 'clary-shell-v15';
 const META_CACHE = 'clary-meta';
 const SHELL = [
   './', 'index.html', 'css/styles.css', 'manifest.webmanifest',
-  'js/app.js', 'js/data.js', 'js/store.js', 'js/insights.js', 'js/garden.js',
+  'js/app.js', 'js/data.js', 'js/store.js', 'js/insights.js', 'js/garden.js', 'js/suntime.js',
   'js/charts.js', 'js/reminders.js', 'js/export.js', 'js/i18n.js', 'js/license.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
 ];

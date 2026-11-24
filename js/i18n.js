@@ -347,6 +347,12 @@ const UI = {
   settings: { en: 'Settings', nl: 'Instellingen' },
   appearance: { en: 'Appearance', nl: 'Weergave' },
   theme: { en: 'Theme', nl: 'Thema' },
+  timezoneSetting: { en: 'Timezone for your garden’s sky', nl: 'Tijdzone voor de lucht in je tuin' },
+  timezoneAuto: { en: 'Automatic ({tz})', nl: 'Automatisch ({tz})' },
+  timezoneExplain: {
+    en: 'Clary uses this to show day, sunrise, sunset, twilight and night in your garden at the right local time - not your device’s own clock, unless you leave this on Automatic.',
+    nl: 'Clary gebruikt dit om dag, zonsopgang, zonsondergang, schemering en nacht in je tuin op het juiste lokale moment te tonen - niet de klok van je toestel, tenzij je dit op Automatisch laat staan.',
+  },
   matchDevice: { en: 'Match device', nl: 'Zelfde als toestel' },
   light: { en: 'Light', nl: 'Licht' },
   dark: { en: 'Dark', nl: 'Donker' },

@@ -74,6 +74,11 @@ stored on the user's own device.
   after fire" - a symbol of change) alongside butterflies and, at a year, a tree that stays; tap
   any flower to look back on that day's check-in and any note you wrote; and a "Save garden photo"
   button turns it into a PNG to keep or share.
+- **A garden that knows the time of day**: day, sunrise, sunset, twilight and night, each with
+  their own sky, sun or moon and (at night) stars - based on a timezone you choose yourself in
+  Settings ("Automatic" by default), not assumed from the device, location or IP address. This
+  uses five fixed clock bands, not real sunrise/sunset astronomy, which would need your precise
+  location rather than just a timezone.
 - **Medication refill reminders**: optionally tell Clary how many days a refill of a medication
   lasts you, and it lets you know on Today once you've logged that many days with it since your
   last refill - counting logged days, not exact pill counts, since that's what Clary tracks.
@@ -104,6 +109,7 @@ To publish, host the folder on any static host with HTTPS, such as GitHub Pages.
 | `js/store.js` | Storage on the device (localStorage) and date helpers |
 | `js/insights.js` | Pattern recognition and statistics |
 | `js/garden.js`, `js/charts.js` | Garden and charts (SVG) |
+| `js/suntime.js` | Day/night/twilight phase for the garden, from a user-chosen timezone |
 | `js/reminders.js`, `sw.js` | Reminders and offline support |
 | `js/export.js` | CSV and backup downloads |
 | `js/license.js` | Trial limit and Lemon Squeezy license checks |
