@@ -5,7 +5,7 @@ import {
   findPatterns, describePattern, describeEnrichment, describeCombination, findCombinations,
   periodStarts, summarize, monthly, cycleInsight, mostLogged, medOveruse,
   perimenstrualSet, medClassSummary, medOveruseByClass, medClassByMonth, menstrualMigraineStat,
-  menoSymptomCounts, trackingSpanWeeks,
+  menoSymptomCounts, trackingSpanWeeks, medDaysSinceRefill,
 } from '../js/insights.js';
 
 function build(days, fn) {
@@ -305,4 +305,17 @@ test('findCombinations needs about 8 weeks of data and at least 2 candidates', (
   assert.deepEqual(findCombinations(short, ['tired', 'busy']), []);
   const long = build(60, () => {});
   assert.deepEqual(findCombinations(long, ['tired']), []);
+});
+
+test('medDaysSinceRefill counts logged days for one medication, optionally since a reset date', () => {
+  const entries = build(10, (e, i) => {
+    e.headache.had = true;
+    e.headache.meds = i % 2 === 0 ? ['Ibuprofen'] : ['Paracetamol'];
+  });
+  assert.equal(medDaysSinceRefill(entries, 'Ibuprofen', undefined), 5);
+  assert.equal(medDaysSinceRefill(entries, 'Paracetamol', undefined), 5);
+  assert.equal(medDaysSinceRefill(entries, 'Aspirin', undefined), 0);
+  // Only days strictly after the reset date count.
+  const sinceDate = addDays('2026-01-01', 5); // day index 5
+  assert.equal(medDaysSinceRefill(entries, 'Ibuprofen', sinceDate), 2); // indices 6 and 8
 });

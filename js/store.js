@@ -37,13 +37,18 @@ export function defaultState() {
       usesHrt: false,
       trackMeno: true,
       favoriteMeno: [], // up to 3 menopause-symptom ids: always get their own Insights/report card
+      medRefill: {}, // { [medication name]: days' worth per refill, e.g. 30 } - only set for meds the user opted into
     },
     entries: {}, // 'YYYY-MM-DD' -> entry
     seenMilestones: [],
     lastBackupAt: null, // timestamp (ms) of the last "Save backup", or null
     backupSnoozedUntil: null, // timestamp (ms): don't remind before this
     installSnoozedUntil: null, // timestamp (ms): don't auto-show the install screen before this
+    medRefillResetAt: {}, // { [medication name]: 'YYYY-MM-DD' of the last "I've refilled" tap }
     license: { key: null, instanceId: null, valid: false }, // see js/license.js
+    packs: { // optional paid add-ons, each its own license key; see js/license.js
+      gardenCare: { key: null, instanceId: null, valid: false }, // extra flower species + self-care cards
+    },
   };
 }
 
@@ -83,6 +88,11 @@ export function normalize(raw) {
   const license = raw.license
     ? { ...base.license, ...raw.license }
     : { key: null, instanceId: null, valid: true, grandfathered: true };
+  // Add-on packs (e.g. "Garden & self-care") are new and never free, so -
+  // unlike the main license above - there is no grandfathering: an absent
+  // pack is simply not owned.
+  const packs = { ...base.packs };
+  for (const id of Object.keys(base.packs)) packs[id] = { ...base.packs[id], ...((raw.packs || {})[id] || {}) };
   return {
     ...base,
     ...raw,
@@ -91,6 +101,7 @@ export function normalize(raw) {
     entries: migrateEntries(raw.entries && typeof raw.entries === 'object' ? raw.entries : {}),
     seenMilestones: Array.isArray(raw.seenMilestones) ? raw.seenMilestones : [],
     license,
+    packs,
   };
 }
 
