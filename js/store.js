@@ -38,6 +38,7 @@ export function defaultState() {
       trackMeno: true,
       favoriteMeno: [], // up to 3 menopause-symptom ids: always get their own Insights/report card
       medRefill: {}, // { [medication name]: days' worth per refill, e.g. 30 } - only set for meds the user opted into
+      timezone: '', // IANA name the user chose for the garden's day/night sky; '' = use the device's own
     },
     entries: {}, // 'YYYY-MM-DD' -> entry
     seenMilestones: [],

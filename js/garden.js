@@ -1,5 +1,6 @@
 // The reward garden: one flower per check-in, drawn as SVG.
 import { SPECIES, BUTTERFLY_MILESTONES, TREE_MILESTONE } from './data.js';
+import { dayPhase } from './suntime.js';
 
 // Small deterministic random generator so the garden looks the same every visit.
 function rand(seed) {
@@ -115,6 +116,53 @@ function moonIcon(phase, r) {
   </g>`;
 }
 
+// Blends two hex colours (0 = all a, 1 = all b) - used to tint the season's
+// usual daytime palette toward each time-of-day's mood.
+function mix(a, b, t) {
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+  const lerp = (shift) => Math.round(((pa >> shift) & 255) + (((pb >> shift) & 255) - ((pa >> shift) & 255)) * t);
+  return `#${((1 << 24) + (lerp(16) << 16) + (lerp(8) << 8) + lerp(0)).toString(16).slice(1)}`;
+}
+
+// How far each non-daytime phase pulls the season's sky and hills toward its
+// own mood colour, and by how much. `day` needs no entry - the season
+// palette alone is already "daytime".
+const PHASE_TINT = {
+  sunrise: { sky: '#F7CDA3', toward: '#E8935B', amount: 0.2 },
+  sunset: { sky: '#EFAE8C', toward: '#C9638B', amount: 0.28 },
+  twilight: { sky: '#8D82A8', toward: '#4B4570', amount: 0.45 },
+  night: { sky: '#2E2C46', toward: '#15142A', amount: 0.62 },
+};
+
+function tintForPhase(pal, phase) {
+  const t = PHASE_TINT[phase];
+  if (!t) return pal; // 'day'
+  return {
+    sky: t.sky,
+    hill1: mix(pal.hill1, t.toward, t.amount),
+    hill2: mix(pal.hill2, t.toward, t.amount),
+    hill3: mix(pal.hill3, t.toward, t.amount),
+  };
+}
+
+// A simple radiating sun badge, for day, sunrise and sunset.
+function sunIcon(r) {
+  return `<g aria-hidden="true">
+    <circle cx="0" cy="0" r="${r + 5}" fill="#F3C969" opacity=".25"/>
+    <circle cx="0" cy="0" r="${r}" fill="#F3C969"/>
+  </g>`;
+}
+
+// A handful of still stars, for a night sky.
+function starsSvg(seed) {
+  const r = rand(seed);
+  let s = '';
+  for (let i = 0; i < 16; i++) {
+    s += `<circle cx="${(r() * 340 + 10).toFixed(1)}" cy="${(r() * 66 + 6).toFixed(1)}" r="${(r() * 0.8 + 0.4).toFixed(2)}" fill="#F3E9CE" opacity="${(r() * 0.5 + 0.4).toFixed(2)}"/>`;
+  }
+  return `<g aria-hidden="true">${s}</g>`;
+}
+
 function treeSvg() {
   return `<g transform="translate(38 172)" aria-hidden="true">
     <path d="M0 0 L-2.5 -36 L2.5 -36 Z" fill="#6E5A46"/>
@@ -149,11 +197,15 @@ const MAX_SHOWN = 90;
  * @param {Date} [opts.now] - overridable for tests; defaults to the real date.
  * @param {object[]} [opts.extraSpecies] - the "Garden & self-care" pack's
  *   species, interleaved in if (and only if) the pack has been bought.
+ * @param {string} [opts.timezone] - IANA timezone the user picked in
+ *   Settings, used only to decide day/night/twilight for the sky; defaults
+ *   to the device's own timezone.
  */
 export function gardenScene(total, opts = {}) {
-  const { dates, interactive = false, emptyText = '', now = new Date(), extraSpecies = [] } = opts;
+  const { dates, interactive = false, emptyText = '', now = new Date(), extraSpecies = [], timezone } = opts;
   const season = seasonFor(now);
-  const pal = SEASON_PALETTE[season];
+  const phase = dayPhase(now, timezone);
+  const pal = tintForPhase(SEASON_PALETTE[season], phase);
   const first = Math.max(0, total - MAX_SHOWN);
   const items = [];
   for (let i = first; i < total; i++) {
@@ -179,9 +231,12 @@ export function gardenScene(total, opts = {}) {
   const butterflies = BUTTERFLY_MILESTONES
     .map((m, bi) => (total >= m ? `<g transform="translate(${60 + bi * 230} ${70 + bi * 20})">${butterflySvg(m)}</g>` : ''))
     .join('');
+  const showSun = phase === 'day' || phase === 'sunrise' || phase === 'sunset';
+  const low = phase === 'sunrise' || phase === 'sunset'; // near the horizon rather than high in the sky
+  const sky = `<g transform="translate(300 ${low ? 92 : 46})">${showSun ? sunIcon(16) : moonIcon(moonPhase(now), 16)}</g>${phase === 'night' ? starsSvg(Math.floor(now.getTime() / 86400000)) : ''}`;
   return `<svg class="garden" viewBox="0 0 360 240" role="img" aria-label="Garden with ${total} flowers">
     <rect width="360" height="240" fill="${pal.sky}"/>
-    <g transform="translate(300 46)">${moonIcon(moonPhase(now), 16)}</g>
+    ${sky}
     <path d="M0 118 Q 90 78 180 108 T 360 96 V240 H0Z" fill="${pal.hill1}"/>
     <path d="M0 140 Q 120 104 220 132 T 360 124 V240 H0Z" fill="${pal.hill2}"/>
     ${tree}

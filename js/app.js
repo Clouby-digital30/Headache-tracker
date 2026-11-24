@@ -13,6 +13,7 @@ import {
   medOveruseByClass, medClassByMonth, menstrualMigraineStat, menoSymptomCounts, trackingSpanWeeks, medDaysSinceRefill,
 } from './insights.js';
 import { gardenScene, flower, speciesFor } from './garden.js';
+import { deviceTimezone, timezoneOptions } from './suntime.js';
 import { barChart, compareBars, rankList } from './charts.js';
 import { download, toCsv, downloadSvgAsPng } from './export.js';
 import { t, LOCALE } from './i18n.js';
@@ -101,6 +102,7 @@ const dayNumber = (str) => Math.round(parseDate(str).getTime() / 86400000);
 // The "Garden & self-care" pack's extra species/cards, once bought - [] / {}
 // otherwise, which reproduces the exact free behaviour everywhere below.
 const packSpecies = () => (isPackUnlocked(state, 'gardenCare') ? PACK_SPECIES : []);
+const gardenTimezone = () => state.settings.timezone || undefined; // '' falls through to the device's own
 const cardFor = (str) => {
   const base = CARDS[lang()] || CARDS.en;
   const extra = isPackUnlocked(state, 'gardenCare') ? (PACK_CARDS[lang()] || PACK_CARDS.en) : [];
@@ -302,7 +304,7 @@ function viewToday() {
   return `<header class="top"><h1>${greeting()}</h1></header>
     ${hero}${catchUp}${backupNote}${refillNote}
     <button class="card garden-peek" data-action="go" data-view="garden" aria-label="${T('openYourGarden')}">
-      ${gardenScene(st.total, { emptyText: T('gardenEmpty'), extraSpecies: packSpecies() })}
+      ${gardenScene(st.total, { emptyText: T('gardenEmpty'), extraSpecies: packSpecies(), timezone: gardenTimezone() })}
       <div class="peek-stats"><span><strong>${st.total}</strong> ${T(st.total === 1 ? 'bloomSingular' : 'bloomPlural')}</span><span><strong>${st.current}</strong> ${T('dayStreak')}</span></div>
     </button>
     ${cycleCard(cycle, t0)}
@@ -660,7 +662,7 @@ function viewGarden() {
   const dates = Object.keys(state.entries).sort();
   const title = state.profile.gardenName ? esc(state.profile.gardenName) : T('yourGarden');
   return `<header class="top"><h1>${title}</h1></header>
-    <div class="card flush">${gardenScene(st.total, { dates, interactive: true, emptyText: T('gardenEmpty'), extraSpecies: packSpecies() })}</div>
+    <div class="card flush">${gardenScene(st.total, { dates, interactive: true, emptyText: T('gardenEmpty'), extraSpecies: packSpecies(), timezone: gardenTimezone() })}</div>
     ${st.total ? `<p class="hint center">${T('tapAFlower')}</p>` : ''}
     <div class="btn-row center"><button class="btn ghost" data-action="save-garden-photo">${T('saveGardenPhoto')}</button></div>
     <div class="tiles">${tile(st.total, T(st.total === 1 ? 'bloomSingular' : 'bloomPlural'))}${tile(st.current, T('dayStreak'))}${tile(st.best, T('longestStreak'))}</div>
@@ -803,6 +805,13 @@ function viewSettings() {
       </div>
       <div class="field"><span>${T('theme')}</span>${toSetting(chips('settings.theme',
     [['auto', T('matchDevice')], ['light', T('light')], ['dark', T('dark')]], s.theme, false))}</div>
+      <label class="field"><span>${T('timezoneSetting')}</span>
+        <select data-setting="settings.timezone">
+          <option value="">${T('timezoneAuto', { tz: deviceTimezone() })}</option>
+          ${timezoneOptions().map((tz) => `<option value="${esc(tz)}"${s.timezone === tz ? ' selected' : ''}>${esc(tz.replace(/_/g, ' '))}</option>`).join('')}
+        </select>
+        <p class="hint">${T('timezoneExplain')}</p>
+      </label>
     </div>
     <div class="card"><h2>${T('aboutYou')}</h2>
       <label class="field"><span>${T('name')}</span><input type="text" data-setting="profile.name" value="${esc(p.name)}" maxlength="30"></label>
