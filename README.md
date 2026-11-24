@@ -74,6 +74,13 @@ stored on the user's own device.
   after fire" - a symbol of change) alongside butterflies and, at a year, a tree that stays; tap
   any flower to look back on that day's check-in and any note you wrote; and a "Save garden photo"
   button turns it into a PNG to keep or share.
+- **Medication refill reminders**: optionally tell Clary how many days a refill of a medication
+  lasts you, and it lets you know on Today once you've logged that many days with it since your
+  last refill - counting logged days, not exact pill counts, since that's what Clary tracks.
+- **An optional "Garden & self-care" pack** (a separate, small one-time purchase): three extra
+  flower species interleaved into the garden, and a second deck of self-care cards - breathing
+  exercises for an active headache and short menopause-education notes - mixed into the daily card.
+  See "Selling Clary" below.
 
 ## Run it
 
@@ -104,27 +111,42 @@ To publish, host the folder on any static host with HTTPS, such as GitHub Pages.
 ## Selling Clary
 
 Pricing is a one-time **€14.99**, with buyers free to pay more if they choose. There is still no
-server: the license check calls Lemon Squeezy's public license API straight from the browser, and
-a saved state from before this existed is grandfathered in automatically (anyone who already has
+server: the license check calls a public license-validation API straight from the browser, and a
+saved state from before this existed is grandfathered in automatically (anyone who already has
 check-ins when they first open this version is never asked to pay).
+
+> **Lemon Squeezy is shutting down** (processing stops 2027-03-31). `js/license.js` still points at
+> its API for now; when migrating to a replacement, update `BUY_URL` *and* `PACK_BUY_URL` there,
+> and swap the `LS_API` constant for the new provider's equivalent activate/validate/deactivate
+> endpoints - both the main license and the add-on pack below share the same `post()` helper, so
+> this is a single, small, well-contained change.
 
 To go live:
 
-1. At [lemonsqueezy.com](https://www.lemonsqueezy.com), create a store (this is also where payout
-   details, VAT handling and the Clouby Digital seller profile live).
+1. At your chosen provider, create a store (this is also where payout details, VAT handling and
+   the Clouby Digital seller profile live).
 2. Create a product named "Clary", one-time purchase, price €14.99. Under "Pay what you want",
    set a minimum of €9.99 if you want to allow paying more.
-3. On that product, turn on **License Keys** (Product settings → License keys). Set the
-   activation limit to something generous, such as 3, so a buyer can use Clary on a couple of
-   their own devices without issue.
-4. Copy the checkout URL (Share → Copy checkout link) and put it in `js/license.js` as
-   `BUY_URL`, replacing the placeholder.
+3. On that product, turn on license keys, with an activation limit generous enough (e.g. 3) that a
+   buyer can use Clary on a couple of their own devices without issue.
+4. Copy the checkout URL and put it in `js/license.js` as `BUY_URL`, replacing the placeholder.
 5. Commit, push, and let GitHub Pages redeploy.
 
 A buyer pays, gets the license key by email and on the receipt page, and pastes it into Clary
 under Settings → License (or on the paywall they land on after their 14th check-in). No further
-setup is needed on your side after that; Lemon Squeezy handles receipts, VAT and refunds, and a
+setup is needed on your side after that; the provider handles receipts, VAT and refunds, and a
 refunded key simply stops validating on its own.
+
+### The "Garden & self-care" pack (optional add-on)
+
+A second, separate one-time purchase (**€2.99** suggested), unlocking: three extra flower species
+(interleaved into the garden at 14/45/120 check-ins) and a second set of self-care cards (breathing
+exercises for an active headache, short menopause-education notes) mixed into the daily card. It
+has no free trial and no grandfathering - it is new, so nobody already owns it by default.
+
+To go live, repeat steps 1-4 above for a second product (e.g. "Clary - Garden & self-care pack"),
+and put its checkout URL in `js/license.js` as `PACK_BUY_URL`. A buyer activates it the same way,
+under Settings → Garden & self-care pack, independently of the main license.
 
 ## Good to know
 

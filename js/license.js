@@ -3,8 +3,14 @@
 //
 // Setup (see README "Selling Clary"): create the product, enable License
 // Keys on it, then fill in BUY_URL below with the real checkout link.
+//
+// NOTE: Lemon Squeezy is shutting down (processing stops 2027-03-31). When
+// migrating to its replacement, update BUY_URL *and* PACK_BUY_URL below, and
+// swap LS_API for the new provider's equivalent license-key endpoints - both
+// the main license and the pack license use the same `post()` helper.
 const LS_API = 'https://api.lemonsqueezy.com/v1/licenses';
 export const BUY_URL = 'https://REPLACE-ME.lemonsqueezy.com/buy/REPLACE-WITH-VARIANT-ID';
+export const PACK_BUY_URL = 'https://REPLACE-ME.lemonsqueezy.com/buy/REPLACE-WITH-PACK-VARIANT-ID';
 
 // Free check-ins before a license is required. Matches the point at which
 // pattern recognition itself switches on, so the trial ends right after the
@@ -66,5 +72,50 @@ export async function releaseDevice(state) {
     // best effort: clear locally regardless, the key still works elsewhere
   }
   state.license = { key: null, instanceId: null, valid: false };
+  return { ok: true };
+}
+
+// --- Optional paid add-on packs (e.g. "Garden & self-care"), each its own
+// product/license key, independent of the main trial/unlock above. ---------
+
+export const isPackUnlocked = (state, packId) => !!(state.packs && state.packs[packId] && state.packs[packId].valid);
+
+export async function applyPackKey(state, packId, rawKey) {
+  const key = rawKey.trim();
+  if (!key) return { ok: false, error: 'empty' };
+  state.packs = state.packs || {};
+  try {
+    const { ok, data } = await post('activate', { license_key: key, instance_name: 'Clary web app' });
+    if (!ok || !data.activated) {
+      state.packs[packId] = { key, instanceId: null, valid: false };
+      return { ok: false, error: data.error || null };
+    }
+    state.packs[packId] = { key, instanceId: data.instance?.id || null, valid: true };
+    return { ok: true };
+  } catch {
+    return { ok: false, error: null, network: true };
+  }
+}
+
+export async function revalidatePack(state, packId) {
+  const lic = state.packs && state.packs[packId];
+  if (!lic || !lic.key || !lic.instanceId) return;
+  try {
+    const { ok, data } = await post('validate', { license_key: lic.key, instance_id: lic.instanceId });
+    lic.valid = !!(ok && data.valid);
+  } catch {
+    // offline or the API is down: keep the last known status
+  }
+}
+
+export async function releasePack(state, packId) {
+  const lic = state.packs && state.packs[packId];
+  if (!lic || !lic.key || !lic.instanceId) return { ok: true };
+  try {
+    await post('deactivate', { license_key: lic.key, instance_id: lic.instanceId });
+  } catch {
+    // best effort: clear locally regardless, the key still works elsewhere
+  }
+  state.packs[packId] = { key: null, instanceId: null, valid: false };
   return { ok: true };
 }

@@ -398,6 +398,19 @@ const UI = {
   myMedication: { en: 'My medication', nl: 'Mijn medicatie' },
   newMedPlaceholder: { en: 'e.g. Sumatriptan 50 mg', nl: 'bijv. Sumatriptan 50 mg' },
   newMedAria: { en: 'New medication', nl: 'Nieuwe medicatie' },
+  medRefillTitle: { en: 'Refill reminders', nl: 'Herinnering bij navullen' },
+  medRefillExplain: {
+    en: 'Optional: fill in how many days a refill lasts you, and Clary will let you know when you have logged that many days with it since your last refill. It counts logged days, not exact pill counts.',
+    nl: 'Optioneel: vul in hoeveel dagen je aan een nieuwe voorraad hebt, en Clary laat het weten zodra je dat aantal dagen hebt gelogd sinds je laatste keer bijvullen. Het telt gelogde dagen, niet het exacte aantal pillen.',
+  },
+  medRefillPlaceholder: { en: 'e.g. 30', nl: 'bijv. 30' },
+  medRefillDoneButton: { en: 'I’ve refilled', nl: 'Ik heb bijgevuld' },
+  medRefillStatus: { en: '{n} of {total} days logged since the last refill.', nl: '{n} van de {total} dagen gelogd sinds de laatste keer bijvullen.' },
+  medRefillDueEyebrow: { en: 'Time to refill?', nl: 'Tijd om bij te vullen?' },
+  medRefillDueText: {
+    en: 'You have logged {med} on {n} days since your last refill.',
+    nl: 'Je hebt {med} {n} dagen gelogd sinds je laatste keer bijvullen.',
+  },
   myData: { en: 'My data', nl: 'Mijn gegevens' },
   dataLivesHere: {
     en: 'Your records live only on this device. Save a backup now and then, and use it to move to a new phone.',
@@ -518,6 +531,15 @@ const UI = {
   },
   licenseErrorGeneric: { en: 'That license key did not work. Check it and try again.', nl: 'Die licentiesleutel werkte niet. Controleer hem en probeer het opnieuw.' },
   licenseErrorNetwork: { en: 'Could not reach the license server. Check your connection and try again.', nl: 'Kon de licentieserver niet bereiken. Controleer je verbinding en probeer het opnieuw.' },
+
+  packTitle: { en: 'Garden & self-care pack', nl: 'Tuin- & zelfzorgpakket' },
+  packExplain: {
+    en: 'A one-time optional extra: more flower species for your garden, plus a set of breathing exercises for an active headache and short menopause-education notes mixed into your daily card.',
+    nl: 'Een eenmalige, optionele extra: meer bloemsoorten voor je tuin, plus een set ademhalingsoefeningen voor tijdens een hoofdpijnaanval en korte uitlegkaarten over de overgang, gemengd door je dagelijkse kaart.',
+  },
+  packUnlocked: { en: 'The Garden & self-care pack is unlocked on this device.', nl: 'Het Tuin- & zelfzorgpakket is ontgrendeld op dit toestel.' },
+  packLocked: { en: 'Not yet unlocked.', nl: 'Nog niet ontgrendeld.' },
+  buyPack: { en: 'Buy the pack (€2.99)', nl: 'Koop het pakket (€2,99)' },
   paywallTitle: { en: 'You’ve used your 14 free check-ins', nl: 'Je hebt je 14 gratis check-ins gebruikt' },
   paywallExplain: {
     en: 'Your existing check-ins are safe, and you can still view your calendar, insights and garden. Unlock Clary to keep adding new days.',

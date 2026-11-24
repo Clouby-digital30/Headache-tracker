@@ -429,6 +429,19 @@ export function trackingSpanWeeks(entries, endStr) {
   return Math.max(0, Math.round((parseDate(endStr) - parseDate(dates[0])) / (7 * 86400000)));
 }
 
+// How many logged days have included this medication since it was last
+// marked "refilled" (or ever, if never reset) - a day-level proxy for dose
+// count, since Clary tracks whether a medication was taken each day, not
+// exact quantities.
+export function medDaysSinceRefill(entries, medName, sinceDate) {
+  let n = 0;
+  for (const d of Object.keys(entries)) {
+    if (sinceDate && d <= sinceDate) continue;
+    if ((entries[d]?.headache?.meds || []).includes(medName)) n++;
+  }
+  return n;
+}
+
 // How often each already-chosen trigger or menopause symptom was logged, over
 // a range. Purely descriptive (counts), unlike findPatterns which compares
 // outcomes - useful from day one, before there is enough data for a pattern.

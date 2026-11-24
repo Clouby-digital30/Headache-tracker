@@ -1,6 +1,7 @@
 import {
   TRIGGER_GROUPS, PERIOD_LEVELS, HEADACHE_TYPES, DURATIONS, ONSET, LOCATIONS, HEADACHE_SYMPTOMS, IMPACT, RELIEF,
   MENO_SYMPTOMS, QUICK_MENO_SYMPTOMS, SEVERITY, STAGES, DERIVED_LABELS, MILESTONES, SPECIES, CARDS,
+  PACK_SPECIES, PACK_CARDS,
 } from './data.js';
 import {
   load, save, today, addDays, parseDate, toDateStr, emptyEntry, streaks, defaultState, normalize, backupDue,
@@ -9,14 +10,17 @@ import {
 import {
   findPatterns, describePattern, describeEnrichment, describeCombination, findCombinations, summarize, monthly,
   byWeekday, medDaysLast30, medOveruse, cycleInsight, mostLogged,
-  medOveruseByClass, medClassByMonth, menstrualMigraineStat, menoSymptomCounts, trackingSpanWeeks,
+  medOveruseByClass, medClassByMonth, menstrualMigraineStat, menoSymptomCounts, trackingSpanWeeks, medDaysSinceRefill,
 } from './insights.js';
 import { gardenScene, flower, speciesFor } from './garden.js';
 import { barChart, compareBars, rankList } from './charts.js';
 import { download, toCsv, downloadSvgAsPng } from './export.js';
 import { t, LOCALE } from './i18n.js';
 import * as reminders from './reminders.js';
-import { BUY_URL, TRIAL_LIMIT, trialUsed, isLicensed, trialExhausted, applyLicenseKey, revalidate, releaseDevice } from './license.js';
+import {
+  BUY_URL, PACK_BUY_URL, TRIAL_LIMIT, trialUsed, isLicensed, trialExhausted, applyLicenseKey, revalidate, releaseDevice,
+  isPackUnlocked, applyPackKey, revalidatePack, releasePack,
+} from './license.js';
 
 let state = load();
 save(state); // persist any one-time migration (e.g. a newly introduced trigger) right away
@@ -30,9 +34,11 @@ const ui = {
   licenseBusy: false, licenseMsg: null, licenseKeyDraft: '', paywallReturnDate: null, installReturnView: 'today',
   idm: null, // [bool|null, bool|null, bool|null] while the ID Migraine helper is open
   autoInstallPending: false, // true when Clary itself navigated to the install screen, so it may also fire the native Android prompt without waiting for a tap on our own button
+  packBusy: false, packMsg: null, packKeyDraft: '', // "Garden & self-care" pack activation, mirrors the license fields above
 };
 // Re-confirm a stored license in the background; re-render if its status changed.
 revalidate(state).then(() => { save(state); if (ui.view !== 'checkin') render(true); }).catch(() => {});
+revalidatePack(state, 'gardenCare').then(() => { save(state); if (ui.view !== 'checkin') render(true); }).catch(() => {});
 
 const lang = () => state.settings.lang;
 const T = (key, vars) => t(lang(), key, vars);
@@ -92,7 +98,25 @@ function lastBackupText(ts) {
   return T('lastBackupDays', { n: days });
 }
 const dayNumber = (str) => Math.round(parseDate(str).getTime() / 86400000);
-const cardFor = (str) => { const c = CARDS[lang()] || CARDS.en; return c[dayNumber(str) % c.length]; };
+// The "Garden & self-care" pack's extra species/cards, once bought - [] / {}
+// otherwise, which reproduces the exact free behaviour everywhere below.
+const packSpecies = () => (isPackUnlocked(state, 'gardenCare') ? PACK_SPECIES : []);
+const cardFor = (str) => {
+  const base = CARDS[lang()] || CARDS.en;
+  const extra = isPackUnlocked(state, 'gardenCare') ? (PACK_CARDS[lang()] || PACK_CARDS.en) : [];
+  const c = extra.length ? [...base, ...extra] : base;
+  return c[dayNumber(str) % c.length];
+};
+
+// Medications the user opted into a refill reminder for, with how many
+// logged days have used it since the last "I've refilled" tap - and whether
+// that has reached the days' worth they said one refill covers.
+function refillStatuses() {
+  const resetAt = state.medRefillResetAt || {};
+  return Object.entries(state.settings.medRefill || {})
+    .filter(([, perRefill]) => perRefill > 0)
+    .map(([med, perRefill]) => ({ med, perRefill, used: medDaysSinceRefill(state.entries, med, resetAt[med]) }));
+}
 
 function commit() {
   save(state);
@@ -267,10 +291,18 @@ function viewToday() {
         <p>${T('painRelief30', { n: medDays })}</p></div>`
     : '';
 
+  const due = refillStatuses().filter((r) => r.used >= r.perRefill);
+  const refillNote = due.length
+    ? `<div class="card note"><p class="eyebrow">${T('medRefillDueEyebrow')}</p>
+        ${due.map((r) => `<p>${T('medRefillDueText', { med: esc(r.med), n: r.used })}</p>
+          <button class="btn ghost" data-action="refill-done" data-id="${esc(r.med)}">${T('medRefillDoneButton')}</button>`).join('')}
+      </div>`
+    : '';
+
   return `<header class="top"><h1>${greeting()}</h1></header>
-    ${hero}${catchUp}${backupNote}
+    ${hero}${catchUp}${backupNote}${refillNote}
     <button class="card garden-peek" data-action="go" data-view="garden" aria-label="${T('openYourGarden')}">
-      ${gardenScene(st.total, { emptyText: T('gardenEmpty') })}
+      ${gardenScene(st.total, { emptyText: T('gardenEmpty'), extraSpecies: packSpecies() })}
       <div class="peek-stats"><span><strong>${st.total}</strong> ${T(st.total === 1 ? 'bloomSingular' : 'bloomPlural')}</span><span><strong>${st.current}</strong> ${T('dayStreak')}</span></div>
     </button>
     ${cycleCard(cycle, t0)}
@@ -628,7 +660,7 @@ function viewGarden() {
   const dates = Object.keys(state.entries).sort();
   const title = state.profile.gardenName ? esc(state.profile.gardenName) : T('yourGarden');
   return `<header class="top"><h1>${title}</h1></header>
-    <div class="card flush">${gardenScene(st.total, { dates, interactive: true, emptyText: T('gardenEmpty') })}</div>
+    <div class="card flush">${gardenScene(st.total, { dates, interactive: true, emptyText: T('gardenEmpty'), extraSpecies: packSpecies() })}</div>
     ${st.total ? `<p class="hint center">${T('tapAFlower')}</p>` : ''}
     <div class="btn-row center"><button class="btn ghost" data-action="save-garden-photo">${T('saveGardenPhoto')}</button></div>
     <div class="tiles">${tile(st.total, T(st.total === 1 ? 'bloomSingular' : 'bloomPlural'))}${tile(st.current, T('dayStreak'))}${tile(st.best, T('longestStreak'))}</div>
@@ -636,7 +668,7 @@ function viewGarden() {
     ${next ? `<div class="card"><p class="eyebrow">${T('nextMilestone')}</p><h2>${esc(next.title[lang()] || next.title.en)}</h2>
       <p>${T(next.at - st.total === 1 ? 'checkinsToGoSingular' : 'checkinsToGoPlural', { n: next.at - st.total })}</p>
       <div class="progress"><span style="width:${Math.round((st.total / next.at) * 100)}%"></span></div></div>` : ''}
-    <div class="card"><h2>${T('flowers')}</h2><div class="species">${SPECIES.map((sp, i) => {
+    <div class="card"><h2>${T('flowers')}</h2><div class="species">${[...SPECIES, ...packSpecies()].sort((a, b) => a.at - b.at).map((sp, i) => {
     const open = st.total >= sp.at;
     return `<div class="sp${open ? '' : ' locked'}"><svg viewBox="-14 -50 28 52" aria-hidden="true">${flower(sp.id, i)}</svg>
         <span>${open ? esc(sp.name[lang()] || sp.name.en) : T('atCount', { n: sp.at })}</span>
@@ -663,6 +695,20 @@ function licenseCard() {
     <div class="btn-row">
       <button class="btn primary" data-action="buy">${T('buyClary')}</button>
       ${isLicensed(state) && !lic.grandfathered ? `<button class="btn ghost" data-action="free-up-device">${T('freeUpDevice')}</button>` : ''}
+    </div>`;
+}
+
+function packCard() {
+  const unlocked = isPackUnlocked(state, 'gardenCare');
+  const status = `<p>${T(unlocked ? 'packUnlocked' : 'packLocked')}</p>`;
+  const msg = ui.packMsg ? `<p class="hint${ui.packMsg.ok ? '' : ' error'}">${esc(ui.packMsg.text)}</p>` : '';
+  return `<p class="hint">${T('packExplain')}</p>${status}${msg}
+    ${unlocked ? '' : `<div class="add-row">
+      <input type="text" id="pack-key" placeholder="${T('licenseKeyPlaceholder')}" aria-label="${T('licenseKeyAria')}" value="${esc(ui.packKeyDraft || '')}" ${ui.packBusy ? 'disabled' : ''}>
+      <button class="btn ghost" data-action="activate-pack" ${ui.packBusy ? 'disabled' : ''}>${T(ui.packBusy ? 'activating' : 'activate')}</button>
+    </div>`}
+    <div class="btn-row">
+      ${unlocked ? `<button class="btn ghost" data-action="free-up-pack">${T('freeUpDevice')}</button>` : `<button class="btn primary" data-action="buy-pack">${T('buyPack')}</button>`}
     </div>`;
 }
 
@@ -797,7 +843,22 @@ function viewSettings() {
       <div class="add-row"><input type="text" id="new-med" maxlength="40" placeholder="${T('newMedPlaceholder')}" aria-label="${T('newMedAria')}">
         <button class="btn ghost" data-action="add-med">${T('add')}</button></div>
     </div>
+    ${s.meds.length ? `<div class="card"><h2>${T('medRefillTitle')}</h2>
+      <p class="hint">${T('medRefillExplain')}</p>
+      ${s.meds.map((m) => {
+    const perRefill = s.medRefill[m];
+    const used = perRefill ? medDaysSinceRefill(state.entries, m, state.medRefillResetAt[m]) : 0;
+    return `<div class="field tight"><span class="small-label">${esc(m)}</span>
+        <div class="refill-row">
+          <input type="number" min="1" max="365" inputmode="numeric" data-med-refill="${esc(m)}" value="${perRefill || ''}" placeholder="${T('medRefillPlaceholder')}">
+          ${perRefill ? `<button class="btn ghost" data-action="refill-done" data-id="${esc(m)}">${T('medRefillDoneButton')}</button>` : ''}
+        </div>
+        ${perRefill ? `<p class="fine">${T('medRefillStatus', { n: used, total: perRefill })}</p>` : ''}
+      </div>`;
+  }).join('')}
+    </div>` : ''}
     <div class="card"><h2>${T('license')}</h2>${licenseCard()}</div>
+    <div class="card"><h2>${T('packTitle')}</h2>${packCard()}</div>
     <div class="card"><h2>${T('myData')}</h2>
       <p class="hint">${T('dataLivesHere')}</p>
       <p class="hint">${lastBackupText(state.lastBackupAt)}</p>
@@ -823,7 +884,7 @@ function logo() {
 // ---------- reward modal ----------
 function showReward(date) {
   const st = streaks(state.entries);
-  const sp = speciesFor(st.total - 1);
+  const sp = speciesFor(st.total - 1, packSpecies());
   const milestone = MILESTONES.find((m) => m.at === st.total && !state.seenMilestones.includes(m.at));
   if (milestone) { state.seenMilestones.push(milestone.at); save(state); }
   const speciesName = sp.name[lang()] || sp.name.en;
@@ -876,7 +937,7 @@ function showFlowerDay(date) {
   if (!e) return;
   const dates = Object.keys(state.entries).sort();
   const index = dates.indexOf(date);
-  const sp = speciesFor(index);
+  const sp = speciesFor(index, packSpecies());
   $modal.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="flower-day-title">
     <svg class="bloom" viewBox="-22 -54 44 58" aria-hidden="true">${flower(sp.id, index)}</svg>
     <h2 id="flower-day-title">${esc(niceDate(date))}</h2>
@@ -1050,6 +1111,32 @@ const actions = {
     commit();
     render(true);
   },
+  'buy-pack': () => window.open(PACK_BUY_URL, '_blank', 'noopener'),
+  'activate-pack': async () => {
+    const input = document.getElementById('pack-key');
+    const key = input ? input.value : (ui.packKeyDraft || '');
+    if (!key.trim()) return;
+    ui.packBusy = true;
+    ui.packMsg = null;
+    render(true);
+    const result = await applyPackKey(state, 'gardenCare', key);
+    ui.packBusy = false;
+    if (result.ok) {
+      ui.packKeyDraft = '';
+      ui.packMsg = { ok: true, text: T('activateSuccess') };
+      commit();
+    } else {
+      ui.packMsg = { ok: false, text: result.network ? T('licenseErrorNetwork') : T('licenseErrorGeneric') };
+      commit();
+    }
+    render(true);
+  },
+  'free-up-pack': async () => {
+    if (!confirm(T('confirmFreeUpDevice'))) return;
+    await releasePack(state, 'gardenCare');
+    commit();
+    render(true);
+  },
   'copy-yesterday': () => {
     const prev = state.entries[addDays(ui.draftDate, -1)];
     if (!prev) return;
@@ -1121,6 +1208,12 @@ const actions = {
   },
   'remove-med': (el) => {
     state.settings.meds = state.settings.meds.filter((m) => m !== el.dataset.id);
+    delete state.settings.medRefill[el.dataset.id];
+    delete state.medRefillResetAt[el.dataset.id];
+    commit(); render(true);
+  },
+  'refill-done': (el) => {
+    state.medRefillResetAt[el.dataset.id] = today();
     commit(); render(true);
   },
   'calendar-file': () => download('clary-reminder.ics', reminders.calendarFile(state.settings.reminderTime, lang()), 'text/calendar'),
@@ -1170,12 +1263,23 @@ document.addEventListener('input', (ev) => {
   } else if (el.dataset.setting) {
     setPath(state, el.dataset.setting, el.value);
     commit();
+  } else if (el.dataset.medRefill) {
+    // Keyed by the medication's own (free-text) name, not a dot-path field,
+    // since a name could itself contain a literal "." that setPath would
+    // misread as a nested path.
+    const days = Number(el.value) || 0;
+    if (days > 0) state.settings.medRefill[el.dataset.medRefill] = days;
+    else delete state.settings.medRefill[el.dataset.medRefill];
+    commit();
   } else if (el.id === 'license-key') {
     ui.licenseKeyDraft = el.value;
+  } else if (el.id === 'pack-key') {
+    ui.packKeyDraft = el.value;
   }
 });
 
 document.addEventListener('change', (ev) => {
+  if (ev.target.dataset.medRefill) { render(true); return; }
   if (ev.target.id !== 'restore-file' || !ev.target.files[0]) return;
   ev.target.files[0].text().then((text) => {
     const data = JSON.parse(text);

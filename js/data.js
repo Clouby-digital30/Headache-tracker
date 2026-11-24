@@ -362,3 +362,50 @@ export const CARDS = {
     'Een opvlieger die opkomt? Hij gaat weer over. Adem rustig tot het zover is.',
   ],
 };
+
+// --- "Garden & self-care" pack (optional, paid add-on) ---------------------
+// Extra flower species, shown once purchased, interleaved with the free
+// SPECIES by their own `at` thresholds. Kept in its own list (not merged
+// into SPECIES) so nothing changes in the free garden for anyone who hasn't
+// bought the pack.
+export const PACK_SPECIES = [
+  { id: 'moonflower', name: { en: 'moonflower', nl: 'maanbloem' }, at: 14 },
+  {
+    id: 'eveningprimrose', name: { en: 'evening primrose', nl: 'teunisbloem' }, at: 45,
+    meaning: {
+      en: 'Evening primrose only opens at dusk - a flower built for the quieter hours.',
+      nl: 'De teunisbloem opent pas bij schemering - een bloem gemaakt voor de rustigere uren.',
+    },
+  },
+  { id: 'iris', name: { en: 'iris', nl: 'iris' }, at: 120 },
+];
+
+// Extra self-care cards for the pack: short breathing exercises for use
+// during an active headache, and short menopause-education notes. Folded
+// into the same daily rotation as CARDS once purchased.
+export const PACK_CARDS = {
+  en: [
+    'In through the nose for four counts, hold for four, out through the mouth for six. Repeat five times.',
+    'Breathe in slowly while you count to four fingers on one hand, one finger at a time. Then breathe out the same way.',
+    'Picture a candle an arm’s length away. Breathe in gently, then breathe out as if you were making the flame flicker without blowing it out.',
+    'Drop your shoulders, unclench your jaw, soften your eyebrows - in that order. Hold each for one breath.',
+    'Press your feet flat on the floor. Notice their full weight for five slow breaths. This is called grounding.',
+    'Hormone levels shift unevenly in perimenopause, not in one smooth decline - which is part of why some weeks feel harder than others.',
+    'Hot flashes are linked to a narrowed "thermoneutral zone" in the brain, so smaller temperature changes trigger a bigger response.',
+    'Migraine becomes more common right before menopause for many people, then often eases afterward, as hormone levels settle rather than fluctuate.',
+    'Poor sleep and headaches often feed each other - improving one, even slightly, tends to help the other.',
+    'None of this is about willpower. Fluctuating hormones genuinely change how your body responds to stress, heat and pain.',
+  ],
+  nl: [
+    'Vier tellen in door je neus, vier tellen vasthouden, zes tellen uit door je mond. Herhaal dit vijf keer.',
+    'Adem langzaam in terwijl je met één vinger tegelijk vier vingers van één hand telt. Adem op dezelfde manier weer uit.',
+    'Stel je een kaars op armlengte afstand voor. Adem zachtjes in, en blaas dan uit alsof je de vlam laat flakkeren zonder hem uit te blazen.',
+    'Laat je schouders zakken, ontspan je kaak, en ontspan je wenkbrauwen - in die volgorde. Houd elke stap één ademhaling vast.',
+    'Zet je voeten plat op de grond. Voel vijf rustige ademhalingen lang hun volle gewicht. Dit heet aarden.',
+    'Hormoonspiegels schommelen tijdens de perimenopauze ongelijkmatig, niet in één geleidelijke daling - dat is mede waarom sommige weken zwaarder voelen dan andere.',
+    'Opvliegers hangen samen met een versmalde "thermoneutrale zone" in de hersenen, waardoor kleinere temperatuurveranderingen al een grotere reactie geven.',
+    'Migraine komt bij veel mensen vaker voor vlak voor de menopauze, en neemt daarna vaak weer af, zodra hormoonspiegels zich stabiliseren in plaats van schommelen.',
+    'Slechte slaap en hoofdpijn versterken elkaar vaak - het een verbeteren, al is het maar een klein beetje, helpt meestal ook het ander.',
+    'Niets hiervan gaat over wilskracht. Schommelende hormonen veranderen daadwerkelijk hoe je lichaam reageert op stress, warmte en pijn.',
+  ],
+};

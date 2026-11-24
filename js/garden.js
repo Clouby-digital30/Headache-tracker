@@ -11,8 +11,12 @@ function rand(seed) {
   };
 }
 
-export function speciesFor(index) {
-  const unlocked = SPECIES.filter((s) => s.at <= index + 1);
+// `extra` (the optional "Garden & self-care" pack species) is interleaved by
+// its own `at` thresholds; passing [] (the default, for anyone who hasn't
+// bought the pack) reproduces the exact original behaviour.
+export function speciesFor(index, extra = []) {
+  const all = extra.length ? [...SPECIES, ...extra].sort((a, b) => a.at - b.at) : SPECIES;
+  const unlocked = all.filter((s) => s.at <= index + 1);
   const newest = unlocked[unlocked.length - 1];
   if (newest.at === index + 1) return newest; // the unlocking flower is always the new kind
   return unlocked[Math.floor(rand(index * 7 + 3)() * unlocked.length)];
@@ -25,6 +29,10 @@ const PETALS = {
   tulip: ['#E3A08D', '#D98777', '#EDB9A2'],
   peony: ['#E8B4B0', '#DFA09F', '#F1CCC6'],
   protea: ['#C4577A', '#D97091', '#B5436A'],
+  // "Garden & self-care" pack species:
+  moonflower: ['#F3EFE3', '#EAE3D0', '#FFFFFF'],
+  eveningprimrose: ['#F0D97A', '#E8CC5C', '#F6E49B'],
+  iris: ['#5E6AA8', '#4F5A94', '#7681BC'],
 };
 
 export function flower(kind, seed = 0) {
@@ -47,6 +55,15 @@ export function flower(kind, seed = 0) {
   } else if (kind === 'protea') {
     for (let i = 0; i < 10; i++) head += `<path d="M0 -34 L2.3 -47 L0 -60 L-2.3 -47 Z" fill="${c}" transform="rotate(${i * 36} 0 -34)"/>`;
     head += '<ellipse cx="0" cy="-37" rx="5" ry="7" fill="#F4E7D6"/>';
+  } else if (kind === 'moonflower') {
+    for (let i = 0; i < 5; i++) head += `<path d="M0 -33 Q 7 -40 0 -50 Q -7 -40 0 -33 Z" fill="${c}" transform="rotate(${i * 72} 0 -33)"/>`;
+    head += '<circle cx="0" cy="-35" r="2.4" fill="#E0D7B8"/>';
+  } else if (kind === 'eveningprimrose') {
+    for (let i = 0; i < 4; i++) head += `<path d="M0 -33 Q 5 -43 0 -48 Q -5 -43 0 -33 Z" fill="${c}" transform="rotate(${i * 90 + 45} 0 -33)"/>`;
+    head += '<circle cx="0" cy="-33" r="2.6" fill="#B9843A"/>';
+  } else if (kind === 'iris') {
+    for (let i = 0; i < 3; i++) head += `<ellipse cx="0" cy="-26" rx="3.4" ry="8.5" fill="${c}" transform="rotate(${i * 120} 0 -33)"/>`;
+    for (let i = 0; i < 3; i++) head += `<ellipse cx="0" cy="-42" rx="2.6" ry="8" fill="${c}" opacity=".85" transform="rotate(${i * 120 + 60} 0 -33)"/>`;
   } else {
     for (let i = 0; i < 6; i++) head += `<circle cx="0" cy="-39" r="5" fill="${c}" transform="rotate(${i * 60} 0 -35)"/>`;
     head += '<circle cx="0" cy="-35" r="4.6" fill="#F6DAD3"/><circle cx="0" cy="-35" r="2" fill="#E0A93F"/>';
@@ -130,9 +147,11 @@ const MAX_SHOWN = 90;
  *   attributes for tapping (off for the small Today preview).
  * @param {string} [opts.emptyText] - localized message shown with no flowers yet.
  * @param {Date} [opts.now] - overridable for tests; defaults to the real date.
+ * @param {object[]} [opts.extraSpecies] - the "Garden & self-care" pack's
+ *   species, interleaved in if (and only if) the pack has been bought.
  */
 export function gardenScene(total, opts = {}) {
-  const { dates, interactive = false, emptyText = '', now = new Date() } = opts;
+  const { dates, interactive = false, emptyText = '', now = new Date(), extraSpecies = [] } = opts;
   const season = seasonFor(now);
   const pal = SEASON_PALETTE[season];
   const first = Math.max(0, total - MAX_SHOWN);
@@ -152,7 +171,7 @@ export function gardenScene(total, opts = {}) {
     // are thin and sparse, so a real tap (or a bounding-box click in tests)
     // often lands in the gaps between them without one.
     const hit = tappable ? '<circle cx="0" cy="-28" r="24" fill="#000" opacity="0" pointer-events="all"/>' : '';
-    return `<g class="${classes}" transform="translate(${f.x.toFixed(1)} ${f.y.toFixed(1)}) scale(${f.scale.toFixed(2)})"${tapAttrs}>${hit}${flower(speciesFor(f.i).id, f.i)}</g>`;
+    return `<g class="${classes}" transform="translate(${f.x.toFixed(1)} ${f.y.toFixed(1)}) scale(${f.scale.toFixed(2)})"${tapAttrs}>${hit}${flower(speciesFor(f.i, extraSpecies).id, f.i)}</g>`;
   }).join('');
   const empty = total === 0 && emptyText
     ? `<text x="180" y="175" text-anchor="middle" font-size="13" fill="#6B5B52">${emptyText}</text>` : '';
