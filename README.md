@@ -33,9 +33,13 @@ stored on the user's own device.
   screen, the notification, the calendar file, the doctor report and the CSV export.
 - **14 free check-ins, then a one-time unlock.** Existing check-ins, the calendar, insights and
   garden stay fully visible either way; only adding a new day is gated. See "Selling Clary" below.
-- **Install guide**: step-by-step per platform (a real one-tap button on Android/Chrome when the
-  browser offers it, manual steps for iPhone), reachable from Settings and shown automatically
-  right after a license activates.
+- **Install guide shown automatically, not just on request**: right after onboarding, after a
+  license activates, and again on any later visit from a phone that still isn't installed (at most
+  once every few days), Clary opens its own install screen with no digging through Settings
+  required. On Android/Chrome this also fires the browser's native "Install app?" prompt itself, so
+  opening the link is the only tap before that dialog appears. iPhone's Safari has no such API at
+  all - Apple only allows "Add to Home Screen" as a manual step the person takes themselves - so
+  there Clary shows the Share-icon steps immediately instead. Always reachable again from Settings.
 - **"Could this be migraine?"**: next to "What kind?", a link opens ID Migraine, a validated
   3-question screener (light sensitivity, disability, nausea). It never diagnoses or auto-fills
   anything; it only suggests, and the user taps to accept a migraine label herself.

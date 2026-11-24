@@ -42,6 +42,7 @@ export function defaultState() {
     seenMilestones: [],
     lastBackupAt: null, // timestamp (ms) of the last "Save backup", or null
     backupSnoozedUntil: null, // timestamp (ms): don't remind before this
+    installSnoozedUntil: null, // timestamp (ms): don't auto-show the install screen before this
     license: { key: null, instanceId: null, valid: false }, // see js/license.js
   };
 }
