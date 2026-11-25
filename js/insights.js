@@ -1,6 +1,10 @@
 // Pattern recognition. Pure functions so they can be tested without a browser.
 import { addDays, parseDate, toDateStr } from './store.js';
 import { TRIPTAN_RE } from './data.js';
+import { LOCALE } from './i18n.js';
+
+// One decimal place, with the comma Dutch readers expect instead of a dot.
+const fmt1 = (n, lang) => n.toLocaleString(LOCALE[lang] || 'en', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 const isBleed = (e) => e && e.period && e.period !== 'none' && e.period !== 'spotting';
 const hadHeadache = (e) => !!(e && e.headache && e.headache.had);
@@ -196,7 +200,7 @@ export function describeEnrichment(p, lang = 'en') {
     out.push(s.migraine(Math.round(p.migraineRateWith * 100), Math.round(p.migraineRateWithout * 100)));
   }
   if (p.avgIntensityWith - p.avgIntensityWithout >= ENRICH_INTENSITY_DIFF) {
-    out.push(s.intensity(p.avgIntensityWith.toFixed(1), p.avgIntensityWithout.toFixed(1)));
+    out.push(s.intensity(fmt1(p.avgIntensityWith, lang), fmt1(p.avgIntensityWithout, lang)));
   }
   return out;
 }

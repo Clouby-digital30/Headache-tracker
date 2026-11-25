@@ -68,13 +68,19 @@ function applyTriggerUpdates(settings) {
 
 // Fixes entries saved before 'none' was split into its own id per list (it
 // used to mean three different things - no period, no impact, no relief -
-// which collided in a single id-to-label lookup).
+// which collided in a single id-to-label lookup), and before the headache
+// symptom "light sensitivity" was renamed off plain 'light' (it collided
+// with the period-flow level of the same id, so a light period could show
+// up mislabelled as "light sensitivity").
 function migrateEntries(entries) {
   for (const e of Object.values(entries)) {
     const h = e && e.headache;
     if (!h) continue;
     if (h.impact === 'none') h.impact = 'carried_on';
     if (h.relief === 'none') h.relief = 'no_relief';
+    if (Array.isArray(h.symptoms) && h.symptoms.includes('light')) {
+      h.symptoms = h.symptoms.map((s) => (s === 'light' ? 'light_sensitivity' : s));
+    }
   }
   return entries;
 }

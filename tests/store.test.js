@@ -92,3 +92,19 @@ test('an existing license is kept as saved, not grandfathered', () => {
   assert.equal(loaded.license.key, 'abc');
   assert.ok(!loaded.license.grandfathered);
 });
+
+test('migrates the old "light" headache-symptom id to light_sensitivity, without touching other symptoms', () => {
+  const saved = defaultState();
+  saved.profile.onboarded = true;
+  saved.entries['2026-01-01'] = { headache: { had: true, symptoms: ['nausea', 'light'] } };
+  const loaded = normalize(saved);
+  assert.deepEqual(loaded.entries['2026-01-01'].headache.symptoms, ['nausea', 'light_sensitivity']);
+});
+
+test('leaves entries with no "light" symptom untouched by the migration', () => {
+  const saved = defaultState();
+  saved.profile.onboarded = true;
+  saved.entries['2026-01-01'] = { headache: { had: true, symptoms: ['nausea'] } };
+  const loaded = normalize(saved);
+  assert.deepEqual(loaded.entries['2026-01-01'].headache.symptoms, ['nausea']);
+});

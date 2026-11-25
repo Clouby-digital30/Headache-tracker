@@ -155,7 +155,7 @@ export const HEADACHE_SYMPTOMS = [
   ['aura', { en: 'Aura / visual changes', nl: 'Aura / lichtflitsen zien' }],
   ['nausea', { en: 'Nausea', nl: 'Misselijkheid' }],
   ['vomiting', { en: 'Vomiting', nl: 'Overgeven' }],
-  ['light', { en: 'Light sensitivity', nl: 'Lichtgevoeligheid' }],
+  ['light_sensitivity', { en: 'Light sensitivity', nl: 'Lichtgevoeligheid' }],
   ['sound', { en: 'Sound sensitivity', nl: 'Geluidsgevoeligheid' }],
   ['smell', { en: 'Smell sensitivity', nl: 'Geurgevoeligheid' }],
   ['dizzy', { en: 'Dizziness', nl: 'Duizeligheid' }],
