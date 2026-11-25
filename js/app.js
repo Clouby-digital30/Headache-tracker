@@ -44,6 +44,8 @@ revalidatePack(state, 'gardenCare').then(() => { save(state); if (ui.view !== 'c
 const lang = () => state.settings.lang;
 const T = (key, vars) => t(lang(), key, vars);
 const locale = () => LOCALE[lang()] || 'en';
+// One decimal place, with the comma Dutch readers expect instead of a dot.
+const fmt1 = (n) => n.toLocaleString(locale(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 // Applies the chosen theme before first paint, and again whenever it changes.
 function applyTheme() {
@@ -517,7 +519,7 @@ function viewInsights() {
 
   const medNote = mo.flag
     ? `<div class="card note"><p class="eyebrow">${T('worthMentioning')}</p>
-        <p>${T('medNote3mo', { n: mo.perMonth.toFixed(1) })}</p></div>`
+        <p>${T('medNote3mo', { n: fmt1(mo.perMonth) })}</p></div>`
     : '';
 
   return `<header class="top"><h1>${T('insights')}</h1></header>
@@ -525,7 +527,7 @@ function viewInsights() {
     `<button class="chip${ui.range === n ? ' on' : ''}" aria-pressed="${ui.range === n}" data-action="range" data-value="${n}">${l}</button>`).join('')}</div>
     <div class="tiles four">
       ${tile(s.headacheDays, T('headacheDays'))}${tile(s.migraineDays, T('migraineDays'))}
-      ${tile(s.headacheDays ? s.avgIntensity.toFixed(1) : '–', T('averageIntensity'))}${tile(s.medDays, T('daysWithPainRelief'))}
+      ${tile(s.headacheDays ? fmt1(s.avgIntensity) : '–', T('averageIntensity'))}${tile(s.medDays, T('daysWithPainRelief'))}
     </div>
     ${medNote}
     ${cycleCard(cycle, to)}
@@ -580,8 +582,8 @@ function viewReport() {
   const medClasses = medOveruseByClass(state.entries, to);
   const medMonths = medClassByMonth(state.entries, 3, to);
   const medFlags = [
-    medClasses.triptan.flag ? T('medOveruseTriptanFlag', { n: medClasses.triptan.perMonth.toFixed(1) }) : '',
-    medClasses.simple.flag ? T('medOveruseSimpleFlag', { n: medClasses.simple.perMonth.toFixed(1) }) : '',
+    medClasses.triptan.flag ? T('medOveruseTriptanFlag', { n: fmt1(medClasses.triptan.perMonth) }) : '',
+    medClasses.simple.flag ? T('medOveruseSimpleFlag', { n: fmt1(medClasses.simple.perMonth) }) : '',
   ].filter(Boolean);
 
   // Menopause and cycle: only shown where it applies to this user at all.
@@ -602,7 +604,7 @@ function viewReport() {
         <tr><th>${T('kvHeadacheDays')}</th><td>${s.headacheDays}</td></tr>
         <tr><th>${T('kvMigraine')}</th><td>${s.migraineDays}</td></tr>
         <tr><th>${T('kvAuraDays')}</th><td>${s.auraDays}</td></tr>
-        <tr><th>${T('kvAvgIntensity')}</th><td>${s.headacheDays ? `${s.avgIntensity.toFixed(1)} / 10` : '–'}</td></tr>
+        <tr><th>${T('kvAvgIntensity')}</th><td>${s.headacheDays ? `${fmt1(s.avgIntensity)} / 10` : '–'}</td></tr>
         <tr><th>${T('kvPainRelief')}</th><td>${s.medDays}</td></tr>
         <tr><th>${T('kvRest')}</th><td>${s.restDays}</td></tr>
         <tr><th>${T('kvPeriodDays')}</th><td>${s.periodDays}</td></tr>
@@ -620,10 +622,10 @@ function viewReport() {
       ${meno ? `<p>${T('reportHrtDays')}: ${meno.hrtDays}</p>
         <p>${T('reportMenoSymptomsIntro')}</p>
         ${meno.items.length
-    ? `<ul>${meno.items.map((i) => `<li>${esc(labelOf(i.id))}: ${i.count} (${T('reportAvgSeverity', { sev: i.avgSeverity.toFixed(1) })})</li>`).join('')}</ul>`
+    ? `<ul>${meno.items.map((i) => `<li>${esc(labelOf(i.id))}: ${i.count} (${T('reportAvgSeverity', { sev: fmt1(i.avgSeverity) })})</li>`).join('')}</ul>`
     : `<p>${T('reportNoMenoSymptoms')}</p>`}` : ''}
       ${migraineStat && migraineStat.checked > 0 ? `<p>${T('reportMenstrualMigraine', { withN: migraineStat.withMigraine, checked: migraineStat.checked })}</p>` : ''}
-      <p>${T('reportAvgSleepStress', { sleep: s.avgSleep ? s.avgSleep.toFixed(1) : '–', stress: s.avgStress ? s.avgStress.toFixed(1) : '–' })}</p>` : ''}
+      <p>${T('reportAvgSleepStress', { sleep: s.avgSleep ? fmt1(s.avgSleep) : '–', stress: s.avgStress ? fmt1(s.avgStress) : '–' })}</p>` : ''}
       <h3>${T('observedPatterns')}</h3>
       <p class="fine">${T('patternsCaution')}</p>
       ${strongRisks.length

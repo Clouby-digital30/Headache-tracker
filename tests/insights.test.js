@@ -262,6 +262,10 @@ test('findPatterns also reports migraine rate and intensity for the same days', 
   assert.equal(extra.length, 2);
   assert.match(extra[0], /more often migraine specifically: 100%/);
   assert.match(extra[1], /more intense too: 9\.0\/10/);
+  // Dutch readers expect a comma, not a dot, as the decimal separator.
+  const extraNl = describeEnrichment(p, 'nl');
+  assert.match(extraNl[1], /heftiger[\s\S]*4,0\/10/);
+  assert.doesNotMatch(extraNl[1], /9\.0|4\.0/);
 });
 
 test('allById finds a factor even when it never clears the risk threshold', () => {
